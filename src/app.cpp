@@ -18,7 +18,7 @@ App::App(std::filesystem::path appDir) : _resources(appDir) {
   initWindow();
   _renderer = std::make_unique<Renderer>(_window, appDir);
   _renderer->init();
-  initScene(appDir);
+  initScene();
 }
 
 App::~App() {
@@ -41,7 +41,7 @@ void App::initWindow() {
   assert(_window && "failed to create GLFW window");
 }
 
-void App::initScene(const std::filesystem::path &appDir) {
+void App::initScene() {
   const std::filesystem::path modelPath = "assets/Duck.glb";
   GltfModel model = _resources.loadGltfModel(modelPath);
   std::cout << "meshlets: " << model.packedMeshlets.size()

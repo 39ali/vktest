@@ -18,7 +18,7 @@ public:
 
 private:
   void initWindow();
-  void initScene(const std::filesystem::path &appDir);
+  void initScene();
 
   Resources _resources;
   std::vector<Object3D> _objects;

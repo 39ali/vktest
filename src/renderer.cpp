@@ -2,12 +2,8 @@
 #include "renderer.h"
 
 #include "math_helper.h"
-#include "object3d.h"
-#include "resource.h"
 
-#include <GLFW/glfw3.h>
 #include <array>
-#include <glm/glm.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>

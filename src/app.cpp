@@ -6,7 +6,6 @@
 
 #include <glm/gtc/quaternion.hpp>
 
-#include <cassert>
 #include <chrono>
 #include <iostream>
 #include <random>

@@ -12,12 +12,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/packing.hpp>
 
-#include <cassert>
-#include <cstdint>
-#include <fstream>
 #include <iostream>
-#include <string>
-#include <utility>
 
 struct Vertex {
   glm::vec3 position{};
@@ -37,14 +32,11 @@ uint32_t packCountsAndFlags(uint32_t vertexCount, uint32_t triangleCount,
 
 uint32_t packMeshletCone(const meshopt_Bounds &bounds) {
   return static_cast<uint8_t>(bounds.cone_axis_s8[0]) |
-         (static_cast<uint32_t>(
-              static_cast<uint8_t>(bounds.cone_axis_s8[1]))
+         (static_cast<uint32_t>(static_cast<uint8_t>(bounds.cone_axis_s8[1]))
           << 8u) |
-         (static_cast<uint32_t>(
-              static_cast<uint8_t>(bounds.cone_axis_s8[2]))
+         (static_cast<uint32_t>(static_cast<uint8_t>(bounds.cone_axis_s8[2]))
           << 16u) |
-         (static_cast<uint32_t>(
-              static_cast<uint8_t>(bounds.cone_cutoff_s8))
+         (static_cast<uint32_t>(static_cast<uint8_t>(bounds.cone_cutoff_s8))
           << 24u);
 }
 
@@ -265,9 +257,9 @@ GltfModel buildMeshlets(const CpuGeometry &geometry) {
         static_cast<uint32_t>(gltfModel.packedMeshletVertexRefs.size());
     meshletData.triangleOffset =
         static_cast<uint32_t>(gltfModel.packedClusterTriangles.size());
-    meshletData.packedCountsAndFlags = packCountsAndFlags(
-        static_cast<uint32_t>(meshlet.vertex_count),
-        static_cast<uint32_t>(meshlet.triangle_count));
+    meshletData.packedCountsAndFlags =
+        packCountsAndFlags(static_cast<uint32_t>(meshlet.vertex_count),
+                           static_cast<uint32_t>(meshlet.triangle_count));
     meshletData.boundingCone = packMeshletCone(bounds);
 
     for (uint32_t vertex = 0; vertex < meshlet.vertex_count; ++vertex) {

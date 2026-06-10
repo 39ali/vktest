@@ -1,9 +1,7 @@
 #pragma once
 
-#include <cstddef>
 #include <optional>
 #include <vector>
-
 #include <vulkan/vulkan.h>
 
 struct GLFWwindow;

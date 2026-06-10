@@ -1,15 +1,10 @@
 #define NOMINMAX
 #include "vk_context.h"
+#include "math_helper.h"
 
 #include <GLFW/glfw3.h>
-
-#include <algorithm>
 #include <cassert>
-#include <cstring>
 #include <iostream>
-#include <limits>
-#include <set>
-#include <string>
 
 namespace {
 
@@ -190,10 +185,13 @@ bool VkContext::checkValidationLayerSupport() const {
   std::vector<VkLayerProperties> availableLayers(layerCount);
   vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
   for (const char *layerName : kValidationLayers) {
-    const bool found = std::any_of(
-        availableLayers.begin(), availableLayers.end(), [&](const auto &layer) {
-          return std::strcmp(layerName, layer.layerName) == 0;
-        });
+    bool found = false;
+    for (const VkLayerProperties &layer : availableLayers) {
+      if (std::strcmp(layerName, layer.layerName) == 0) {
+        found = true;
+        break;
+      }
+    }
     if (!found) {
       return false;
     }
@@ -311,12 +309,19 @@ bool VkContext::checkDeviceExtensionSupport(VkPhysicalDevice device) const {
   vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount,
                                        availableExtensions.data());
 
-  std::set<std::string> requiredExtensions(kDeviceExtensions.begin(),
-                                           kDeviceExtensions.end());
-  for (const auto &extension : availableExtensions) {
-    requiredExtensions.erase(extension.extensionName);
+  for (const char *requiredExtension : kDeviceExtensions) {
+    bool found = false;
+    for (const VkExtensionProperties &extension : availableExtensions) {
+      if (std::strcmp(requiredExtension, extension.extensionName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return false;
+    }
   }
-  return requiredExtensions.empty();
+  return true;
 }
 
 VkContext::SwapChainSupportDetails
@@ -340,11 +345,15 @@ VkContext::querySwapChainSupport(VkPhysicalDevice device) const {
 
 void VkContext::createLogicalDevice() {
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-  std::set<uint32_t> uniqueQueueFamilies = {
-      _queueFamilies.graphicsFamily.value(),
-      _queueFamilies.presentFamily.value()};
+  const uint32_t queueFamilies[] = {_queueFamilies.graphicsFamily.value(),
+                                    _queueFamilies.presentFamily.value()};
   const float queuePriority = 1.0f;
-  for (uint32_t queueFamily : uniqueQueueFamilies) {
+  for (size_t i = 0; i < 2; ++i) {
+    const uint32_t queueFamily = queueFamilies[i];
+    if (i > 0 && queueFamily == queueFamilies[0]) {
+      continue;
+    }
+
     VkDeviceQueueCreateInfo queueCreateInfo{
         VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
     queueCreateInfo.queueFamilyIndex = queueFamily;
@@ -443,10 +452,10 @@ VkExtent2D VkContext::chooseSwapExtent(
   glfwGetFramebufferSize(_window, &width, &height);
   VkExtent2D extent{static_cast<uint32_t>(width),
                     static_cast<uint32_t>(height)};
-  extent.width = std::clamp(extent.width, capabilities.minImageExtent.width,
-                            capabilities.maxImageExtent.width);
-  extent.height = std::clamp(extent.height, capabilities.minImageExtent.height,
-                             capabilities.maxImageExtent.height);
+  extent.width = clamp(extent.width, capabilities.minImageExtent.width,
+                       capabilities.maxImageExtent.width);
+  extent.height = clamp(extent.height, capabilities.minImageExtent.height,
+                        capabilities.maxImageExtent.height);
   return extent;
 }
 

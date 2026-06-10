@@ -1,7 +1,6 @@
 #include "camera.h"
+#include "math_helper.h"
 #include <GLFW/glfw3.h>
-#include <algorithm>
-#include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 
 void Camera::update(GLFWwindow *window, float dt) {
@@ -71,7 +70,7 @@ void Camera::onCursorPosition(double x, double y) {
 
   _yaw += static_cast<float>(x - _lastMouseX) * _mouseSensitivity;
   _pitch += static_cast<float>(y - _lastMouseY) * _mouseSensitivity;
-  _pitch = std::clamp(_pitch, -89.0f, 89.0f);
+  _pitch = clamp(_pitch, -89.0f, 89.0f);
   _lastMouseX = x;
   _lastMouseY = y;
 }
@@ -80,7 +79,7 @@ void Camera::lookAt(const glm::vec3 &position, const glm::vec3 &target) {
   _position = position;
   const glm::vec3 direction = glm::normalize(target - position);
   _yaw = glm::degrees(std::atan2(direction.z, direction.x));
-  _pitch = glm::degrees(std::asin(std::clamp(direction.y, -1.0f, 1.0f)));
+  _pitch = glm::degrees(std::asin(clamp(direction.y, -1.0f, 1.0f)));
   _hasLastMousePosition = false;
 }
 

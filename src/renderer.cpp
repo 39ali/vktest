@@ -1,22 +1,16 @@
 #define NOMINMAX
 #include "renderer.h"
 
+#include "math_helper.h"
 #include "object3d.h"
 #include "resource.h"
 
 #include <GLFW/glfw3.h>
+#include <array>
 #include <glm/glm.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
-
-#include <algorithm>
-#include <array>
-#include <cassert>
-#include <cstring>
-#include <cstdint>
-#include <utility>
-#include <vector>
 
 namespace {
 
@@ -48,7 +42,7 @@ static_assert(sizeof(GpuCounters) == 8);
 
 uint32_t packColor(const glm::vec4 &color) {
   const auto packChannel = [](float value) {
-    return static_cast<uint32_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+    return static_cast<uint32_t>(clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
   };
   return packChannel(color.r) | (packChannel(color.g) << 8) |
          (packChannel(color.b) << 16) | (packChannel(color.a) << 24);
@@ -228,7 +222,7 @@ void Renderer::createGraphicsPipeline() {
   pushConstantRange.stageFlags = kPushConstantStages;
   pushConstantRange.offset = 0;
   pushConstantRange.size =
-      std::max(sizeof(PushConstants), sizeof(ComputePushConstants));
+      maxValue(sizeof(PushConstants), sizeof(ComputePushConstants));
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{
       VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -644,7 +638,7 @@ void Renderer::uploadRenderBucket() {
 
   const size_t requiredDrawArgumentCount =
       _indirectMode == IndirectMode::MultiDraw
-          ? std::max<size_t>(_meshletDrawMetas.size(), 1)
+          ? maxValue<size_t>(_meshletDrawMetas.size(), 1)
           : 1;
   if (requiredDrawArgumentCount > _drawArgumentCapacity) {
     vkDeviceWaitIdle(_vkContext.device());
@@ -834,7 +828,7 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
                      sizeof(ComputePushConstants), &pushConstants);
 
   const uint32_t workItemCount =
-      std::max(pushConstants.candidateCount, pushConstants.meshletDrawCount);
+      maxValue(pushConstants.candidateCount, pushConstants.meshletDrawCount);
   const uint32_t groupCount = (workItemCount + 63u) / 64u;
   vkCmdDispatch(commandBuffer, groupCount, 1, 1);
 
@@ -938,10 +932,9 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
   assert(beginCommandBufferResult == VK_SUCCESS &&
          "failed to begin recording command buffer");
 
-  recordComputeCull(commandBuffer,
-                    _opaqueBucket.counterReadbackBuffers[frame.frameIndex]
-                        .buffer,
-                    cullData);
+  recordComputeCull(
+      commandBuffer,
+      _opaqueBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
 
   std::array<VkImageMemoryBarrier, 2> beginRenderingBarriers{};
   beginRenderingBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

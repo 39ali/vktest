@@ -1,0 +1,139 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "shared_structs.h"
+
+layout(local_size_x = 64) in;
+
+layout(push_constant) uniform PushConstants {
+  mat4 view;
+  vec4 frustum;
+  vec2 zNearFar;
+  uint candidateCount;
+  uint mode;
+  uint meshletDrawCount;
+}
+pc;
+
+layout(set = 0, binding = 0, std430) readonly buffer InstanceBuffer {
+  InstanceData instances[];
+};
+
+layout(set = 0, binding = 1, std430) readonly buffer MeshletBuffer {
+  Meshlet meshlets[];
+};
+
+layout(set = 0, binding = 4, std430) readonly buffer CandidateMeshletBuffer {
+  CandidateMeshlet candidateMeshlets[];
+};
+
+layout(set = 0, binding = 5, std430) buffer VisibleMeshletBuffer {
+  VisibleMeshlet visibleMeshlets[];
+};
+
+layout(set = 0, binding = 6, std430) buffer DrawArgumentBuffer {
+  DrawIndirectCommand drawCommands[];
+};
+
+struct Counters {
+  uint visibleMeshletCount;
+  uint visibleTriangleCount;
+};
+
+layout(set = 0, binding = 7, std430) buffer CounterBuffer {
+  Counters counters;
+};
+
+layout(set = 0, binding = 8, std430) readonly buffer MeshletDrawMetaBuffer {
+  MeshletDrawMeta meshletDrawMetas[];
+};
+
+vec3 toCullView(vec3 viewVector) { return vec3(viewVector.xy, -viewVector.z); }
+
+bool sphereVisible(vec3 cullCenter, float radius) {
+  const float z = cullCenter.z;
+
+  bool visible = true;
+  visible =
+      visible && z * pc.frustum.y - abs(cullCenter.x) * pc.frustum.x > -radius;
+  visible =
+      visible && z * pc.frustum.w - abs(cullCenter.y) * pc.frustum.z > -radius;
+  visible = visible && z + radius > pc.zNearFar.x && z - radius < pc.zNearFar.y;
+  return visible;
+}
+
+bool coneCull(vec3 center, float radius, vec3 coneAxis, float coneCutoff,
+              vec3 cameraPosition) {
+  vec3 view = center - cameraPosition;
+  return dot(view, coneAxis) >= coneCutoff * length(view) + radius;
+}
+
+bool coneBackfacing(vec3 viewCenter, float worldRadius, Meshlet meshlet,
+                    InstanceData instance) {
+  vec4 cone = unpackSnorm4x8(meshlet.boundingCone);
+  vec3 worldAxis = normalize(rotateByQuat(cone.xyz, instance.rotation));
+  vec3 viewAxis = normalize(mat3(pc.view) * worldAxis);
+  return coneCull(viewCenter, worldRadius, viewAxis, cone.w, vec3(0.0));
+}
+
+void main() {
+  const uint candidateId = gl_GlobalInvocationID.x;
+
+  if (pc.mode == 0u) {
+    if (candidateId == 0) {
+      drawCommands[0].vertexCount = kSyntheticIndicesPerMeshlet;
+      drawCommands[0].firstVertex = 0u;
+      drawCommands[0].firstInstance = 0u;
+    }
+  } else if (candidateId < pc.meshletDrawCount) {
+    MeshletDrawMeta meta = meshletDrawMetas[candidateId];
+    Meshlet drawMeshlet = meshlets[meta.meshletId];
+    drawCommands[candidateId].vertexCount =
+        meshletTriangleCount(drawMeshlet) * 3u;
+    drawCommands[candidateId].firstVertex = 0u;
+    drawCommands[candidateId].firstInstance = meta.visibleInstanceOffset;
+  }
+
+  if (candidateId >= pc.candidateCount) {
+    return;
+  }
+
+  CandidateMeshlet candidate = candidateMeshlets[candidateId];
+  InstanceData instance = instances[candidate.instanceId];
+  Meshlet meshlet = meshlets[candidate.meshletId];
+  vec4 boundingSphere = unpackMeshletSphere(meshlet);
+
+  vec3 scale = vec3(instance.translationScaleX.w, instance.scaleYZ.x,
+                    instance.scaleYZ.y);
+  vec3 worldCenter =
+      instance.translationScaleX.xyz +
+      rotateByQuat(boundingSphere.xyz * scale, instance.rotation);
+  float worldRadius =
+      boundingSphere.w * max(max(abs(scale.x), abs(scale.y)), abs(scale.z));
+  vec3 viewCenter = (pc.view * vec4(worldCenter, 1.0)).xyz;
+  vec3 cullCenter = toCullView(viewCenter);
+
+  if (!sphereVisible(cullCenter, worldRadius)) {
+    return;
+  }
+  if (coneBackfacing(viewCenter, worldRadius, meshlet, instance)) {
+    return;
+  }
+
+  if (pc.mode == 0u) {
+    atomicAdd(counters.visibleMeshletCount, 1u);
+    atomicAdd(counters.visibleTriangleCount, meshletTriangleCount(meshlet));
+    const uint visibleId = atomicAdd(drawCommands[0].instanceCount, 1u);
+    visibleMeshlets[visibleId].instanceId = candidate.instanceId;
+    visibleMeshlets[visibleId].meshletId = candidate.meshletId;
+  } else {
+    atomicAdd(counters.visibleMeshletCount, 1u);
+    atomicAdd(counters.visibleTriangleCount, meshletTriangleCount(meshlet));
+    MeshletDrawMeta meta = meshletDrawMetas[candidate.meshletId];
+    const uint meshletInstanceId =
+        atomicAdd(drawCommands[candidate.meshletId].instanceCount, 1u);
+    const uint visibleId = meta.visibleInstanceOffset + meshletInstanceId;
+    visibleMeshlets[visibleId].instanceId = candidate.instanceId;
+    visibleMeshlets[visibleId].meshletId = candidate.meshletId;
+  }
+}

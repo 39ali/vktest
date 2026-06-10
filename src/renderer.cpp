@@ -58,7 +58,7 @@ InstanceData makeInstanceData(const Object3D &object) {
 } // namespace
 
 Renderer::Renderer(GLFWwindow *window, std::filesystem::path appDir)
-    : _vkContext(window), _resources(std::move(appDir)), _window(window) {}
+    : _vkContext(window), _resources(std::move(appDir)) {}
 
 Renderer::~Renderer() { cleanup(); }
 
@@ -316,7 +316,7 @@ void Renderer::createImgui() {
   renderingInfo.pColorAttachmentFormats = &renderTarget.colorFormat;
   renderingInfo.depthAttachmentFormat = renderTarget.depthFormat;
 
-  ImGui_ImplGlfw_InitForVulkan(_window, true);
+  ImGui_ImplGlfw_InitForVulkan(_vkContext._window, true);
   ImGui_ImplVulkan_InitInfo initInfo{};
   initInfo.Instance = _vkContext.instance();
   initInfo.PhysicalDevice = _vkContext.physicalDevice();

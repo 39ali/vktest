@@ -93,7 +93,6 @@ private:
 
   VkContext _vkContext;
   Resources _resources;
-  GLFWwindow *_window = nullptr;
   std::vector<Meshlet> _meshlets;
   std::vector<MeshletVertex> _clusterVertices;
   std::vector<uint32_t> _meshletVertexRefs;

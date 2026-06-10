@@ -118,7 +118,6 @@ private:
   void cleanupSyncObjects();
 
   static constexpr size_t kMaxFramesInFlight = 2;
-  GLFWwindow *_window = nullptr;
   VkInstance _instance = VK_NULL_HANDLE;
   VkDebugUtilsMessengerEXT _debugMessenger = VK_NULL_HANDLE;
   VkSurfaceKHR _surface = VK_NULL_HANDLE;
@@ -140,4 +139,7 @@ private:
   std::vector<VkFence> _inFlightFences;
   size_t _currentFrame = 0;
   bool _supportsMultiDrawIndirect = false;
+
+public:
+  GLFWwindow *_window = nullptr;
 };

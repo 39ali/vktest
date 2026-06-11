@@ -44,14 +44,14 @@ std::string formatNumber(uint64_t value) {
 }
 
 InstanceData makeInstanceData(const Object3D &object) {
-  InstanceData instance{};
-  instance.translationScaleX = {object.position.x, object.position.y,
-                                object.position.z, object.scale.x};
-  instance.scaleYZ = {object.scale.y, object.scale.z};
-  instance.rotation = {object.rotation.x, object.rotation.y, object.rotation.z,
-                       object.rotation.w};
-  instance.packedColor = packColor(object.color);
-  return instance;
+  return {
+      .translationScaleX = {object.position.x, object.position.y,
+                            object.position.z, object.scale.x},
+      .rotation = {object.rotation.x, object.rotation.y, object.rotation.z,
+                   object.rotation.w},
+      .scaleYZ = {object.scale.y, object.scale.z},
+      .packedColor = packColor(object.color),
+  };
 }
 
 } // namespace
@@ -126,17 +126,19 @@ void Renderer::cleanup() {
 void Renderer::createDescriptorSetLayout() {
   std::array<VkDescriptorSetLayoutBinding, 10> bindings{};
   for (uint32_t binding = 0; binding < bindings.size(); ++binding) {
-    bindings[binding].binding = binding;
-    bindings[binding].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    bindings[binding].descriptorCount = 1;
-    bindings[binding].stageFlags =
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+    bindings[binding] = {
+        .binding = binding,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+    };
   }
 
   VkDescriptorSetLayoutCreateInfo layoutInfo{
-      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-  layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-  layoutInfo.pBindings = bindings.data();
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .bindingCount = static_cast<uint32_t>(bindings.size()),
+      .pBindings = bindings.data(),
+  };
 
   const VkResult createDescriptorSetLayoutResult = vkCreateDescriptorSetLayout(
       _vkContext.device(), &layoutInfo, nullptr, &_descriptorSetLayout);
@@ -153,108 +155,124 @@ void Renderer::createGraphicsPipeline() {
       _vkContext.createShaderModule(fragShaderCode);
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = vertShaderModule;
-  vertShaderStageInfo.pName = "main";
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_VERTEX_BIT,
+      .module = vertShaderModule,
+      .pName = "main",
+  };
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = fragShaderModule;
-  fragShaderStageInfo.pName = "main";
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+      .module = fragShaderModule,
+      .pName = "main",
+  };
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                     fragShaderStageInfo};
 
   VkPipelineVertexInputStateCreateInfo vertexInputInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+  };
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+  };
 
   const RenderTargetInfo renderTarget = _vkContext.renderTargetInfo();
-  VkViewport viewport{};
-  viewport.width = static_cast<float>(renderTarget.extent.width);
-  viewport.height = static_cast<float>(renderTarget.extent.height);
-  viewport.maxDepth = 1.0f;
+  VkViewport viewport{
+      .width = static_cast<float>(renderTarget.extent.width),
+      .height = static_cast<float>(renderTarget.extent.height),
+      .maxDepth = 1.0f,
+  };
 
-  VkRect2D scissor{{0, 0}, renderTarget.extent};
+  VkRect2D scissor{
+      .offset = {0, 0},
+      .extent = renderTarget.extent,
+  };
   VkPipelineViewportStateCreateInfo viewportState{
-      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
-  viewportState.viewportCount = 1;
-  viewportState.pViewports = &viewport;
-  viewportState.scissorCount = 1;
-  viewportState.pScissors = &scissor;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .viewportCount = 1,
+      .pViewports = &viewport,
+      .scissorCount = 1,
+      .pScissors = &scissor,
+  };
 
   VkPipelineRasterizationStateCreateInfo rasterizer{
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
-  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-  rasterizer.lineWidth = 1.0f;
-  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .polygonMode = VK_POLYGON_MODE_FILL,
+      .cullMode = VK_CULL_MODE_BACK_BIT,
+      .frontFace = VK_FRONT_FACE_CLOCKWISE,
+      .lineWidth = 1.0f,
+  };
 
   VkPipelineMultisampleStateCreateInfo multisampling{
-      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
-  multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+  };
 
   VkPipelineDepthStencilStateCreateInfo depthStencil{
-      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthWriteEnable = VK_TRUE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_FALSE;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      .depthTestEnable = VK_TRUE,
+      .depthWriteEnable = VK_TRUE,
+      .depthCompareOp = VK_COMPARE_OP_LESS,
+      .depthBoundsTestEnable = VK_FALSE,
+      .stencilTestEnable = VK_FALSE,
+  };
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask =
-      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{
+      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+  };
 
   VkPipelineColorBlendStateCreateInfo colorBlending{
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-  colorBlending.attachmentCount = 1;
-  colorBlending.pAttachments = &colorBlendAttachment;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .attachmentCount = 1,
+      .pAttachments = &colorBlendAttachment,
+  };
 
-  VkPushConstantRange pushConstantRange{};
-  pushConstantRange.stageFlags =
-      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
-  pushConstantRange.offset = 0;
-  pushConstantRange.size =
-      maxValue(sizeof(PushConstants), sizeof(ComputePushConstants));
+  VkPushConstantRange pushConstantRange{
+      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+      .offset = 0,
+      .size = static_cast<uint32_t>(
+          maxValue(sizeof(PushConstants), sizeof(ComputePushConstants))),
+  };
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-  pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = 1,
+      .pSetLayouts = &_descriptorSetLayout,
+      .pushConstantRangeCount = 1,
+      .pPushConstantRanges = &pushConstantRange,
+  };
   const VkResult createPipelineLayoutResult = vkCreatePipelineLayout(
       _vkContext.device(), &pipelineLayoutInfo, nullptr, &_pipelineLayout);
   assert(createPipelineLayoutResult == VK_SUCCESS &&
          "failed to create pipeline layout");
 
-  VkGraphicsPipelineCreateInfo pipelineInfo{
-      VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
   VkPipelineRenderingCreateInfo renderingInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
-  renderingInfo.colorAttachmentCount = 1;
-  renderingInfo.pColorAttachmentFormats = &renderTarget.colorFormat;
-  renderingInfo.depthAttachmentFormat = renderTarget.depthFormat;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+      .colorAttachmentCount = 1,
+      .pColorAttachmentFormats = &renderTarget.colorFormat,
+      .depthAttachmentFormat = renderTarget.depthFormat,
+  };
 
-  pipelineInfo.pNext = &renderingInfo;
-  pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  pipelineInfo.pVertexInputState = &vertexInputInfo;
-  pipelineInfo.pInputAssemblyState = &inputAssembly;
-  pipelineInfo.pViewportState = &viewportState;
-  pipelineInfo.pRasterizationState = &rasterizer;
-  pipelineInfo.pMultisampleState = &multisampling;
-  pipelineInfo.pDepthStencilState = &depthStencil;
-  pipelineInfo.pColorBlendState = &colorBlending;
-  pipelineInfo.layout = _pipelineLayout;
-  pipelineInfo.renderPass = VK_NULL_HANDLE;
-  pipelineInfo.subpass = 0;
+  VkGraphicsPipelineCreateInfo pipelineInfo{
+      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .pNext = &renderingInfo,
+      .stageCount = 2,
+      .pStages = shaderStages,
+      .pVertexInputState = &vertexInputInfo,
+      .pInputAssemblyState = &inputAssembly,
+      .pViewportState = &viewportState,
+      .pRasterizationState = &rasterizer,
+      .pMultisampleState = &multisampling,
+      .pDepthStencilState = &depthStencil,
+      .pColorBlendState = &colorBlending,
+      .layout = _pipelineLayout,
+      .renderPass = VK_NULL_HANDLE,
+      .subpass = 0,
+  };
 
   const VkResult createGraphicsPipelineResult =
       vkCreateGraphicsPipelines(_vkContext.device(), VK_NULL_HANDLE, 1,
@@ -272,15 +290,17 @@ void Renderer::createCullingPipeline() {
   const VkShaderModule shaderModule = _vkContext.createShaderModule(shaderCode);
 
   VkPipelineShaderStageCreateInfo shaderStageInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-  shaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-  shaderStageInfo.module = shaderModule;
-  shaderStageInfo.pName = "main";
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+      .module = shaderModule,
+      .pName = "main",
+  };
 
   VkComputePipelineCreateInfo pipelineInfo{
-      VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
-  pipelineInfo.stage = shaderStageInfo;
-  pipelineInfo.layout = _pipelineLayout;
+      .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+      .stage = shaderStageInfo,
+      .layout = _pipelineLayout,
+  };
 
   const VkResult createComputePipelineResult =
       vkCreateComputePipelines(_vkContext.device(), VK_NULL_HANDLE, 1,
@@ -298,15 +318,19 @@ void Renderer::createImgui() {
   ImGui::StyleColorsDark();
 
   std::array<VkDescriptorPoolSize, 1> poolSizes{{
-      {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 16},
+      {
+          .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .descriptorCount = 16,
+      },
   }};
 
   VkDescriptorPoolCreateInfo poolInfo{
-      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-  poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-  poolInfo.maxSets = 16;
-  poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-  poolInfo.pPoolSizes = poolSizes.data();
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+      .maxSets = 16,
+      .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+      .pPoolSizes = poolSizes.data(),
+  };
   const VkResult createPoolResult = vkCreateDescriptorPool(
       _vkContext.device(), &poolInfo, nullptr, &_imguiDescriptorPool);
   assert(createPoolResult == VK_SUCCESS &&
@@ -314,37 +338,42 @@ void Renderer::createImgui() {
 
   const RenderTargetInfo renderTarget = _vkContext.renderTargetInfo();
   VkPipelineRenderingCreateInfo renderingInfo{
-      VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
-  renderingInfo.colorAttachmentCount = 1;
-  renderingInfo.pColorAttachmentFormats = &renderTarget.colorFormat;
-  renderingInfo.depthAttachmentFormat = renderTarget.depthFormat;
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+      .colorAttachmentCount = 1,
+      .pColorAttachmentFormats = &renderTarget.colorFormat,
+      .depthAttachmentFormat = renderTarget.depthFormat,
+  };
 
   ImGui_ImplGlfw_InitForVulkan(_vkContext._window, true);
-  ImGui_ImplVulkan_InitInfo initInfo{};
-  initInfo.Instance = _vkContext.instance();
-  initInfo.PhysicalDevice = _vkContext.physicalDevice();
-  initInfo.Device = _vkContext.device();
-  initInfo.QueueFamily = _vkContext.graphicsQueueFamily();
-  initInfo.Queue = _vkContext.graphicsQueue();
-  initInfo.DescriptorPool = _imguiDescriptorPool;
-  initInfo.MinImageCount = _vkContext.swapChainImageCount();
-  initInfo.ImageCount = _vkContext.swapChainImageCount();
-  initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  initInfo.UseDynamicRendering = true;
-  initInfo.PipelineRenderingCreateInfo = renderingInfo;
+  ImGui_ImplVulkan_InitInfo initInfo{
+      .ApiVersion = VK_API_VERSION_1_3,
+      .Instance = _vkContext.instance(),
+      .PhysicalDevice = _vkContext.physicalDevice(),
+      .Device = _vkContext.device(),
+      .QueueFamily = _vkContext.graphicsQueueFamily(),
+      .Queue = _vkContext.graphicsQueue(),
+      .DescriptorPool = _imguiDescriptorPool,
+      .MinImageCount = _vkContext.swapChainImageCount(),
+      .ImageCount = _vkContext.swapChainImageCount(),
+      .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
+      .UseDynamicRendering = true,
+      .PipelineRenderingCreateInfo = renderingInfo,
+  };
   ImGui_ImplVulkan_Init(&initInfo);
 }
 
 void Renderer::createDescriptorPool() {
-  VkDescriptorPoolSize poolSize{};
-  poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  poolSize.descriptorCount = 10;
+  VkDescriptorPoolSize poolSize{
+      .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .descriptorCount = 10,
+  };
 
   VkDescriptorPoolCreateInfo poolInfo{
-      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-  poolInfo.poolSizeCount = 1;
-  poolInfo.pPoolSizes = &poolSize;
-  poolInfo.maxSets = 1;
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      .maxSets = 1,
+      .poolSizeCount = 1,
+      .pPoolSizes = &poolSize,
+  };
 
   const VkResult createDescriptorPoolResult = vkCreateDescriptorPool(
       _vkContext.device(), &poolInfo, nullptr, &_descriptorPool);
@@ -355,10 +384,11 @@ void Renderer::createDescriptorPool() {
 void Renderer::createDescriptorSet() {
   VkDescriptorSetLayout layout = _descriptorSetLayout;
   VkDescriptorSetAllocateInfo allocInfo{
-      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-  allocInfo.descriptorPool = _descriptorPool;
-  allocInfo.descriptorSetCount = 1;
-  allocInfo.pSetLayouts = &layout;
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+      .descriptorPool = _descriptorPool,
+      .descriptorSetCount = 1,
+      .pSetLayouts = &layout,
+  };
 
   const VkResult allocateDescriptorSetResult = vkAllocateDescriptorSets(
       _vkContext.device(), &allocInfo, &_descriptorSet);
@@ -370,17 +400,20 @@ void Renderer::updateInstanceDescriptorSet() {
   const VkDeviceSize bufferSize =
       sizeof(InstanceData) * _instanceBufferCapacity;
 
-  VkDescriptorBufferInfo bufferInfo{};
-  bufferInfo.buffer = _instanceBuffer.buffer;
-  bufferInfo.offset = 0;
-  bufferInfo.range = bufferSize;
+  VkDescriptorBufferInfo bufferInfo{
+      .buffer = _instanceBuffer.buffer,
+      .offset = 0,
+      .range = bufferSize,
+  };
 
-  VkWriteDescriptorSet descriptorWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-  descriptorWrite.dstSet = _descriptorSet;
-  descriptorWrite.dstBinding = 0;
-  descriptorWrite.descriptorCount = 1;
-  descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptorWrite.pBufferInfo = &bufferInfo;
+  VkWriteDescriptorSet descriptorWrite{
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .dstSet = _descriptorSet,
+      .dstBinding = 0,
+      .descriptorCount = 1,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      .pBufferInfo = &bufferInfo,
+  };
 
   vkUpdateDescriptorSets(_vkContext.device(), 1, &descriptorWrite, 0, nullptr);
 }
@@ -391,27 +424,37 @@ void Renderer::updateMeshDescriptorSet() {
   assert(!_meshletVertexRefs.empty());
   assert(!_packedClusterTriangles.empty());
 
-  std::array<VkDescriptorBufferInfo, 4> bufferInfos{};
-  bufferInfos[0].buffer = _meshletBuffer.buffer;
-  bufferInfos[0].range = sizeof(Meshlet) * _meshlets.size();
-  bufferInfos[1].buffer = _clusterVertexBuffer.buffer;
-  bufferInfos[1].range = sizeof(MeshletVertex) * _clusterVertices.size();
-  bufferInfos[2].buffer = _clusterTriangleBuffer.buffer;
-  bufferInfos[2].range = sizeof(uint32_t) * _packedClusterTriangles.size();
-  bufferInfos[3].buffer = _meshletVertexRefBuffer.buffer;
-  bufferInfos[3].range = sizeof(uint32_t) * _meshletVertexRefs.size();
+  std::array<VkDescriptorBufferInfo, 4> bufferInfos{{
+      {
+          .buffer = _meshletBuffer.buffer,
+          .range = sizeof(Meshlet) * _meshlets.size(),
+      },
+      {
+          .buffer = _clusterVertexBuffer.buffer,
+          .range = sizeof(MeshletVertex) * _clusterVertices.size(),
+      },
+      {
+          .buffer = _clusterTriangleBuffer.buffer,
+          .range = sizeof(uint32_t) * _packedClusterTriangles.size(),
+      },
+      {
+          .buffer = _meshletVertexRefBuffer.buffer,
+          .range = sizeof(uint32_t) * _meshletVertexRefs.size(),
+      },
+  }};
 
   constexpr std::array<uint32_t, 4> kBindings = {1, 2, 3, 9};
   std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
   for (uint32_t writeIndex = 0; writeIndex < descriptorWrites.size();
        ++writeIndex) {
-    VkWriteDescriptorSet &descriptorWrite = descriptorWrites[writeIndex];
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = _descriptorSet;
-    descriptorWrite.dstBinding = kBindings[writeIndex];
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrite.pBufferInfo = &bufferInfos[writeIndex];
+    descriptorWrites[writeIndex] = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _descriptorSet,
+        .dstBinding = kBindings[writeIndex],
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &bufferInfos[writeIndex],
+    };
   }
 
   vkUpdateDescriptorSets(_vkContext.device(),
@@ -426,28 +469,40 @@ void Renderer::updateRenderBucketDescriptorSet() {
   assert(_meshletDrawMetaCapacity > 0);
   assert(_renderBucket.counterBuffer.buffer != VK_NULL_HANDLE);
 
-  std::array<VkDescriptorBufferInfo, 5> bufferInfos{};
-  bufferInfos[0].buffer = _renderBucket.candidateMeshletBuffer.buffer;
-  bufferInfos[0].range = sizeof(MeshletInstance) * _candidateMeshletCapacity;
-  bufferInfos[1].buffer = _renderBucket.visibleMeshletBuffer.buffer;
-  bufferInfos[1].range = sizeof(MeshletInstance) * _visibleMeshletCapacity;
-  bufferInfos[2].buffer = _renderBucket.drawArgumentBuffer.buffer;
-  bufferInfos[2].range = sizeof(DrawIndirectCommand) * _drawArgumentCapacity;
-  bufferInfos[3].buffer = _renderBucket.counterBuffer.buffer;
-  bufferInfos[3].range = sizeof(RenderCounters);
-  bufferInfos[4].buffer = _renderBucket.meshletDrawMetaBuffer.buffer;
-  bufferInfos[4].range = sizeof(MeshletDrawMeta) * _meshletDrawMetaCapacity;
+  std::array<VkDescriptorBufferInfo, 5> bufferInfos{{
+      {
+          .buffer = _renderBucket.candidateMeshletBuffer.buffer,
+          .range = sizeof(MeshletInstance) * _candidateMeshletCapacity,
+      },
+      {
+          .buffer = _renderBucket.visibleMeshletBuffer.buffer,
+          .range = sizeof(MeshletInstance) * _visibleMeshletCapacity,
+      },
+      {
+          .buffer = _renderBucket.drawArgumentBuffer.buffer,
+          .range = sizeof(DrawIndirectCommand) * _drawArgumentCapacity,
+      },
+      {
+          .buffer = _renderBucket.counterBuffer.buffer,
+          .range = sizeof(RenderCounters),
+      },
+      {
+          .buffer = _renderBucket.meshletDrawMetaBuffer.buffer,
+          .range = sizeof(MeshletDrawMeta) * _meshletDrawMetaCapacity,
+      },
+  }};
 
   std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
   for (uint32_t writeIndex = 0; writeIndex < descriptorWrites.size();
        ++writeIndex) {
-    VkWriteDescriptorSet &descriptorWrite = descriptorWrites[writeIndex];
-    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = _descriptorSet;
-    descriptorWrite.dstBinding = 4 + writeIndex;
-    descriptorWrite.descriptorCount = 1;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrite.pBufferInfo = &bufferInfos[writeIndex];
+    descriptorWrites[writeIndex] = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _descriptorSet,
+        .dstBinding = 4 + writeIndex,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &bufferInfos[writeIndex],
+    };
   }
 
   vkUpdateDescriptorSets(_vkContext.device(),
@@ -456,9 +511,10 @@ void Renderer::updateRenderBucketDescriptorSet() {
 }
 
 MeshId Renderer::loadModel(const GltfModel &model) {
-  MeshUploadInfo info{};
-  info.firstMeshlet = static_cast<uint32_t>(_meshlets.size());
-  info.meshletCount = static_cast<uint32_t>(model.packedMeshlets.size());
+  MeshUploadInfo info{
+      .firstMeshlet = static_cast<uint32_t>(_meshlets.size()),
+      .meshletCount = static_cast<uint32_t>(model.packedMeshlets.size()),
+  };
   const uint32_t clusterVertexBase =
       static_cast<uint32_t>(_clusterVertices.size());
   const uint32_t meshletVertexRefBase =
@@ -529,7 +585,10 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
       const uint32_t meshletId = mesh.firstMeshlet + meshletOffset;
       const uint32_t triangleCount = meshletTriangleCount(_meshlets[meshletId]);
 
-      _candidateMeshlets.push_back({instanceId, meshletId});
+      _candidateMeshlets.push_back({
+          .instanceId = instanceId,
+          .meshletId = meshletId,
+      });
       ++meshletCandidateCounts[meshletId];
       totalCandidateTriangles += triangleCount;
     }
@@ -539,7 +598,10 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
   uint32_t visibleInstanceOffset = 0;
   for (uint32_t meshletId = 0; meshletId < _meshletDrawMetas.size();
        ++meshletId) {
-    _meshletDrawMetas[meshletId] = {visibleInstanceOffset, meshletId};
+    _meshletDrawMetas[meshletId] = {
+        .visibleInstanceOffset = visibleInstanceOffset,
+        .meshletId = meshletId,
+    };
     visibleInstanceOffset += meshletCandidateCounts[meshletId];
   }
 
@@ -554,7 +616,7 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
   }
 
   if (_frameInstances.size() > _instanceBufferCapacity) {
-    vkDeviceWaitIdle(_vkContext.device());
+    _vkContext.waitIdle();
     destroyBuffer(_instanceBuffer);
     _instanceBufferCapacity = _frameInstances.size();
     const VkDeviceSize capacitySize =
@@ -588,7 +650,7 @@ bool Renderer::uploadHostBuffer(const std::vector<T> &source,
   bool recreated = false;
   const VkDeviceSize bufferSize = sizeof(source[0]) * source.size();
   if (source.size() > capacity) {
-    vkDeviceWaitIdle(_vkContext.device());
+    _vkContext.waitIdle();
     destroyBuffer(target);
     capacity = source.size();
     createBuffer(sizeof(source[0]) * capacity, usage,
@@ -615,7 +677,7 @@ void Renderer::uploadRenderBucket() {
       _renderBucket.meshletDrawMetaBuffer, _meshletDrawMetaCapacity);
 
   if (_candidateMeshlets.size() > _visibleMeshletCapacity) {
-    vkDeviceWaitIdle(_vkContext.device());
+    _vkContext.waitIdle();
     destroyBuffer(_renderBucket.visibleMeshletBuffer);
     _visibleMeshletCapacity = _candidateMeshlets.size();
     createBuffer(sizeof(MeshletInstance) * _visibleMeshletCapacity,
@@ -630,7 +692,7 @@ void Renderer::uploadRenderBucket() {
           ? maxValue<size_t>(_meshletDrawMetas.size(), 1)
           : 1;
   if (requiredDrawArgumentCount > _drawArgumentCapacity) {
-    vkDeviceWaitIdle(_vkContext.device());
+    _vkContext.waitIdle();
     destroyBuffer(_renderBucket.drawArgumentBuffer);
     _drawArgumentCapacity = requiredDrawArgumentCount;
     createBuffer(sizeof(DrawIndirectCommand) * _drawArgumentCapacity,
@@ -701,14 +763,17 @@ template <typename T>
 void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                             VkMemoryPropertyFlags properties,
                             Buffer<T> &buffer) {
-  VkBufferCreateInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  bufferInfo.size = size;
-  bufferInfo.usage = usage;
-  bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  VkBufferCreateInfo bufferInfo{
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = size,
+      .usage = usage,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+  };
 
-  VmaAllocationCreateInfo allocationInfo{};
-  allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-  allocationInfo.requiredFlags = properties;
+  VmaAllocationCreateInfo allocationInfo{
+      .usage = VMA_MEMORY_USAGE_AUTO,
+      .requiredFlags = properties,
+  };
   if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
     const bool readbackBuffer = (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
                                 !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -754,17 +819,28 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
   vkCmdFillBuffer(commandBuffer, _renderBucket.drawArgumentBuffer.buffer, 0,
                   sizeof(DrawIndirectCommand) * _drawArgumentCapacity, 0);
 
-  std::array<VkBufferMemoryBarrier, 2> transferBarriers{};
-  transferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-  transferBarriers[0].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  transferBarriers[0].dstAccessMask =
-      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-  transferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  transferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  transferBarriers[0].buffer = _renderBucket.counterBuffer.buffer;
-  transferBarriers[0].size = VK_WHOLE_SIZE;
-  transferBarriers[1] = transferBarriers[0];
-  transferBarriers[1].buffer = _renderBucket.drawArgumentBuffer.buffer;
+  std::array<VkBufferMemoryBarrier, 2> transferBarriers{{
+      {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+          .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .dstAccessMask =
+              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = _renderBucket.counterBuffer.buffer,
+          .size = VK_WHOLE_SIZE,
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+          .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .dstAccessMask =
+              VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = _renderBucket.drawArgumentBuffer.buffer,
+          .size = VK_WHOLE_SIZE,
+      },
+  }};
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
@@ -776,15 +852,14 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
   vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                           _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 
-  ComputePushConstants pushConstants{};
-  pushConstants.view = cullData.view;
-  pushConstants.frustum = cullData.frustum;
-  pushConstants.zNearFar = cullData.zNearFar;
-  pushConstants.candidateCount =
-      static_cast<uint32_t>(_candidateMeshlets.size());
-  pushConstants.mode = _indirectMode == IndirectMode::MultiDraw ? 1u : 0u;
-  pushConstants.meshletDrawCount =
-      static_cast<uint32_t>(_meshletDrawMetas.size());
+  ComputePushConstants pushConstants{
+      .view = cullData.view,
+      .frustum = cullData.frustum,
+      .zNearFar = cullData.zNearFar,
+      .candidateCount = static_cast<uint32_t>(_candidateMeshlets.size()),
+      .mode = _indirectMode == IndirectMode::MultiDraw ? 1u : 0u,
+      .meshletDrawCount = static_cast<uint32_t>(_meshletDrawMetas.size()),
+  };
   vkCmdPushConstants(commandBuffer, _pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                      0, sizeof(ComputePushConstants), &pushConstants);
@@ -794,20 +869,35 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
   const uint32_t groupCount = (workItemCount + 63u) / 64u;
   vkCmdDispatch(commandBuffer, groupCount, 1, 1);
 
-  std::array<VkBufferMemoryBarrier, 3> computeBarriers{};
-  for (VkBufferMemoryBarrier &barrier : computeBarriers) {
-    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.size = VK_WHOLE_SIZE;
-  }
-  computeBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-  computeBarriers[0].buffer = _renderBucket.visibleMeshletBuffer.buffer;
-  computeBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-  computeBarriers[1].buffer = _renderBucket.drawArgumentBuffer.buffer;
-  computeBarriers[2].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-  computeBarriers[2].buffer = _renderBucket.counterBuffer.buffer;
+  std::array<VkBufferMemoryBarrier, 3> computeBarriers{{
+      {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = _renderBucket.visibleMeshletBuffer.buffer,
+          .size = VK_WHOLE_SIZE,
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = _renderBucket.drawArgumentBuffer.buffer,
+          .size = VK_WHOLE_SIZE,
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = _renderBucket.counterBuffer.buffer,
+          .size = VK_WHOLE_SIZE,
+      },
+  }};
 
   vkCmdPipelineBarrier(
       commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -816,19 +906,21 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
       0, 0, nullptr, static_cast<uint32_t>(computeBarriers.size()),
       computeBarriers.data(), 0, nullptr);
 
-  VkBufferCopy counterCopy{};
-  counterCopy.size = sizeof(RenderCounters);
+  VkBufferCopy counterCopy{
+      .size = sizeof(RenderCounters),
+  };
   vkCmdCopyBuffer(commandBuffer, _renderBucket.counterBuffer.buffer,
                   counterReadbackBuffer, 1, &counterCopy);
 
   VkBufferMemoryBarrier hostReadBarrier{
-      VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-  hostReadBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  hostReadBarrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-  hostReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  hostReadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  hostReadBarrier.buffer = counterReadbackBuffer;
-  hostReadBarrier.size = VK_WHOLE_SIZE;
+      .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+      .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .buffer = counterReadbackBuffer,
+      .size = VK_WHOLE_SIZE,
+  };
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr, 1,
@@ -892,7 +984,8 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
                                    const CameraCullData &cullData, float dt) {
   VkCommandBuffer commandBuffer = frame.commandBuffer;
   VkCommandBufferBeginInfo beginInfo{
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+  };
   const VkResult beginCommandBufferResult =
       vkBeginCommandBuffer(commandBuffer, &beginInfo);
   assert(beginCommandBufferResult == VK_SUCCESS &&
@@ -902,34 +995,38 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
       commandBuffer,
       _renderBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
 
-  std::array<VkImageMemoryBarrier, 2> beginRenderingBarriers{};
-  beginRenderingBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  beginRenderingBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  beginRenderingBarriers[0].newLayout =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  beginRenderingBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  beginRenderingBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  beginRenderingBarriers[0].image = frame.colorImage;
-  beginRenderingBarriers[0].subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_COLOR_BIT;
-  beginRenderingBarriers[0].subresourceRange.levelCount = 1;
-  beginRenderingBarriers[0].subresourceRange.layerCount = 1;
-  beginRenderingBarriers[0].dstAccessMask =
-      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-  beginRenderingBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  beginRenderingBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  beginRenderingBarriers[1].newLayout =
-      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-  beginRenderingBarriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  beginRenderingBarriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  beginRenderingBarriers[1].image = frame.depthImage;
-  beginRenderingBarriers[1].subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_DEPTH_BIT;
-  beginRenderingBarriers[1].subresourceRange.levelCount = 1;
-  beginRenderingBarriers[1].subresourceRange.layerCount = 1;
-  beginRenderingBarriers[1].dstAccessMask =
-      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+  std::array<VkImageMemoryBarrier, 2> beginRenderingBarriers{{
+      {
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+          .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+          .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+          .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image = frame.colorImage,
+          .subresourceRange =
+              {
+                  .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                  .levelCount = 1,
+                  .layerCount = 1,
+              },
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+          .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+          .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+          .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image = frame.depthImage,
+          .subresourceRange =
+              {
+                  .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                  .levelCount = 1,
+                  .layerCount = 1,
+              },
+      },
+  }};
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
@@ -939,29 +1036,32 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
                        beginRenderingBarriers.data());
 
   VkRenderingAttachmentInfo colorAttachment{
-      VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-  colorAttachment.imageView = frame.colorImageView;
-  colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  colorAttachment.clearValue.color = {{0.02f, 0.03f, 0.04f, 1.0f}};
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+      .imageView = frame.colorImageView,
+      .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      .clearValue = {.color = {{0.02f, 0.03f, 0.04f, 1.0f}}},
+  };
 
   VkRenderingAttachmentInfo depthAttachment{
-      VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-  depthAttachment.imageView = frame.depthImageView;
-  depthAttachment.imageLayout =
-      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-  depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  depthAttachment.clearValue.depthStencil = {1.0f, 0};
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+      .imageView = frame.depthImageView,
+      .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      .clearValue = {.depthStencil = {.depth = 1.0f, .stencil = 0}},
+  };
 
   const RenderTargetInfo renderTarget = _vkContext.renderTargetInfo();
-  VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
-  renderingInfo.renderArea = {{0, 0}, renderTarget.extent};
-  renderingInfo.layerCount = 1;
-  renderingInfo.colorAttachmentCount = 1;
-  renderingInfo.pColorAttachments = &colorAttachment;
-  renderingInfo.pDepthAttachment = &depthAttachment;
+  VkRenderingInfo renderingInfo{
+      .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+      .renderArea = {.offset = {0, 0}, .extent = renderTarget.extent},
+      .layerCount = 1,
+      .colorAttachmentCount = 1,
+      .pColorAttachments = &colorAttachment,
+      .pDepthAttachment = &depthAttachment,
+  };
 
   vkCmdBeginRendering(commandBuffer, &renderingInfo);
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -970,8 +1070,9 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
   if (!_frameInstances.empty() && _indirectDrawCount > 0) {
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
-    PushConstants pushConstants{};
-    pushConstants.viewProjection = viewProjection;
+    PushConstants pushConstants{
+        .viewProjection = viewProjection,
+    };
     vkCmdPushConstants(commandBuffer, _pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                        0, sizeof(PushConstants), &pushConstants);
@@ -982,16 +1083,21 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
   renderImgui(commandBuffer, dt);
   vkCmdEndRendering(commandBuffer);
 
-  VkImageMemoryBarrier presentBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-  presentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  presentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-  presentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  presentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  presentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  presentBarrier.image = frame.colorImage;
-  presentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  presentBarrier.subresourceRange.levelCount = 1;
-  presentBarrier.subresourceRange.layerCount = 1;
+  VkImageMemoryBarrier presentBarrier{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+      .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = frame.colorImage,
+      .subresourceRange =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .levelCount = 1,
+              .layerCount = 1,
+          },
+  };
 
   vkCmdPipelineBarrier(commandBuffer,
                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,

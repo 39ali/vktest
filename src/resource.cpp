@@ -48,11 +48,11 @@ uint32_t packTriangle(uint8_t a, uint8_t b, uint8_t c) {
 MeshletVertex packClusterVertex(const Vertex &vertex) {
   const glm::vec3 normal = glm::normalize(vertex.normal);
 
-  MeshletVertex packed{};
-  packed.positionXY = glm::packHalf2x16({vertex.position.x, vertex.position.y});
-  packed.positionZNormalX = glm::packHalf2x16({vertex.position.z, normal.x});
-  packed.normalYZ = glm::packHalf2x16({normal.y, normal.z});
-  return packed;
+  return {
+      .positionXY = glm::packHalf2x16({vertex.position.x, vertex.position.y}),
+      .positionZNormalX = glm::packHalf2x16({vertex.position.z, normal.x}),
+      .normalYZ = glm::packHalf2x16({normal.y, normal.z}),
+  };
 }
 
 template <typename T>
@@ -152,11 +152,12 @@ void loadNode(const tinygltf::Model &model, const tinygltf::Node &node,
       const uint32_t firstVertex =
           static_cast<uint32_t>(geometry.vertices.size());
       for (size_t i = 0; i < positionAccessor.count; ++i) {
-        Vertex vertex{};
         const auto *p =
             reinterpret_cast<const float *>(positions + i * positionStride);
-        vertex.position =
-            glm::vec3(transform * glm::vec4(p[0], p[1], p[2], 1.0f));
+        Vertex vertex{
+            .position =
+                glm::vec3(transform * glm::vec4(p[0], p[1], p[2], 1.0f)),
+        };
         if (normals) {
           const auto *n =
               reinterpret_cast<const float *>(normals + i * normalStride);
@@ -248,19 +249,20 @@ GltfModel buildMeshlets(const CpuGeometry &geometry) {
         reinterpret_cast<const float *>(geometry.vertices.data()),
         geometry.vertices.size(), sizeof(Vertex));
 
-    Meshlet meshletData{};
-    meshletData.packedSphere0 =
-        glm::packHalf2x16({bounds.center[0], bounds.center[1]});
-    meshletData.packedSphere1 =
-        glm::packHalf2x16({bounds.center[2], bounds.radius});
-    meshletData.vertexOffset =
-        static_cast<uint32_t>(gltfModel.packedMeshletVertexRefs.size());
-    meshletData.triangleOffset =
-        static_cast<uint32_t>(gltfModel.packedClusterTriangles.size());
-    meshletData.packedCountsAndFlags =
-        packCountsAndFlags(static_cast<uint32_t>(meshlet.vertex_count),
-                           static_cast<uint32_t>(meshlet.triangle_count));
-    meshletData.boundingCone = packMeshletCone(bounds);
+    Meshlet meshletData{
+        .packedSphere0 =
+            glm::packHalf2x16({bounds.center[0], bounds.center[1]}),
+        .packedSphere1 =
+            glm::packHalf2x16({bounds.center[2], bounds.radius}),
+        .vertexOffset =
+            static_cast<uint32_t>(gltfModel.packedMeshletVertexRefs.size()),
+        .triangleOffset =
+            static_cast<uint32_t>(gltfModel.packedClusterTriangles.size()),
+        .packedCountsAndFlags =
+            packCountsAndFlags(static_cast<uint32_t>(meshlet.vertex_count),
+                               static_cast<uint32_t>(meshlet.triangle_count)),
+        .boundingCone = packMeshletCone(bounds),
+    };
 
     for (uint32_t vertex = 0; vertex < meshlet.vertex_count; ++vertex) {
       const uint32_t vertexIndex =

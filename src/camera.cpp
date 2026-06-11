@@ -99,12 +99,12 @@ glm::mat4 Camera::viewProjectionMatrix() const {
 CameraCullData Camera::cullData() const {
   const float halfFovY = glm::radians(_fovY) * 0.5f;
   const float halfFovX = std::atan(std::tan(halfFovY) * _aspect);
-  CameraCullData data{};
-  data.view = viewMatrix();
-  data.frustum = {std::cos(halfFovX), std::sin(halfFovX), std::cos(halfFovY),
-                  std::sin(halfFovY)};
-  data.zNearFar = {_nearPlane, _farPlane};
-  return data;
+  return {
+      .view = viewMatrix(),
+      .frustum = {std::cos(halfFovX), std::sin(halfFovX),
+                  std::cos(halfFovY), std::sin(halfFovY)},
+      .zNearFar = {_nearPlane, _farPlane},
+  };
 }
 
 glm::vec3 Camera::forward() const {

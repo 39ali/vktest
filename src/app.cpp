@@ -36,8 +36,7 @@ void App::initWindow() {
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-  _window =
-      glfwCreateWindow(kWidth, kHeight, "vktest glTF Vulkan", nullptr, nullptr);
+  _window = glfwCreateWindow(kWidth, kHeight, "vktest", nullptr, nullptr);
   assert(_window && "failed to create GLFW window");
 }
 

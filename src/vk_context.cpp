@@ -154,18 +154,22 @@ void VkContext::createInstance() {
   assert((!kEnableValidationLayers || checkValidationLayerSupport()) &&
          "validation layers requested but not available");
 
-  VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
-  appInfo.pApplicationName = "vktest";
-  appInfo.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-  appInfo.pEngineName = "No Engine";
-  appInfo.engineVersion = VK_MAKE_VERSION(0, 1, 0);
-  appInfo.apiVersion = VK_API_VERSION_1_3;
+  VkApplicationInfo appInfo{
+      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+      .pApplicationName = "vktest",
+      .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
+      .pEngineName = "No Engine",
+      .engineVersion = VK_MAKE_VERSION(0, 1, 0),
+      .apiVersion = VK_API_VERSION_1_3,
+  };
 
   auto extensions = requiredExtensions();
-  VkInstanceCreateInfo createInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
-  createInfo.pApplicationInfo = &appInfo;
-  createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-  createInfo.ppEnabledExtensionNames = extensions.data();
+  VkInstanceCreateInfo createInfo{
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pApplicationInfo = &appInfo,
+      .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+      .ppEnabledExtensionNames = extensions.data(),
+  };
 
   VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
   if (kEnableValidationLayers) {
@@ -216,13 +220,15 @@ std::vector<const char *> VkContext::requiredExtensions() const {
 
 void VkContext::populateDebugMessengerCreateInfo(
     VkDebugUtilsMessengerCreateInfoEXT &createInfo) const {
-  createInfo = {VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
-  createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  createInfo.pfnUserCallback = debugCallback;
+  createInfo = {
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+      .pfnUserCallback = debugCallback,
+  };
 }
 
 void VkContext::setupDebugMessenger() {
@@ -358,18 +364,21 @@ void VkContext::createLogicalDevice() {
     }
 
     VkDeviceQueueCreateInfo queueCreateInfo{
-        VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
-    queueCreateInfo.queueFamilyIndex = queueFamily;
-    queueCreateInfo.queueCount = 1;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .queueFamilyIndex = queueFamily,
+        .queueCount = 1,
+        .pQueuePriorities = &queuePriority,
+    };
     queueCreateInfos.push_back(queueCreateInfo);
   }
 
   VkPhysicalDeviceVulkan13Features supportedVulkan13Features{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+  };
   VkPhysicalDeviceFeatures2 supportedFeatures{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
-  supportedFeatures.pNext = &supportedVulkan13Features;
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+      .pNext = &supportedVulkan13Features,
+  };
   vkGetPhysicalDeviceFeatures2(_physicalDevice, &supportedFeatures);
   assert(supportedVulkan13Features.dynamicRendering &&
          "Vulkan 1.3 dynamic rendering is not supported");
@@ -377,21 +386,22 @@ void VkContext::createLogicalDevice() {
       supportedFeatures.features.multiDrawIndirect == VK_TRUE;
 
   VkPhysicalDeviceVulkan13Features vulkan13Features{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
-  vulkan13Features.dynamicRendering = VK_TRUE;
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+      .dynamicRendering = VK_TRUE,
+  };
   VkPhysicalDeviceFeatures2 deviceFeatures{
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
-  deviceFeatures.features.multiDrawIndirect = _supportsMultiDrawIndirect;
-  deviceFeatures.pNext = &vulkan13Features;
-  VkDeviceCreateInfo createInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-  createInfo.queueCreateInfoCount =
-      static_cast<uint32_t>(queueCreateInfos.size());
-  createInfo.pQueueCreateInfos = queueCreateInfos.data();
-  createInfo.pEnabledFeatures = nullptr;
-  createInfo.pNext = &deviceFeatures;
-  createInfo.enabledExtensionCount =
-      static_cast<uint32_t>(kDeviceExtensions.size());
-  createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+      .pNext = &vulkan13Features,
+      .features = {.multiDrawIndirect = _supportsMultiDrawIndirect},
+  };
+  VkDeviceCreateInfo createInfo{
+      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .pNext = &deviceFeatures,
+      .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+      .pQueueCreateInfos = queueCreateInfos.data(),
+      .enabledExtensionCount = static_cast<uint32_t>(kDeviceExtensions.size()),
+      .ppEnabledExtensionNames = kDeviceExtensions.data(),
+  };
   if (kEnableValidationLayers) {
     createInfo.enabledLayerCount =
         static_cast<uint32_t>(kValidationLayers.size());
@@ -408,13 +418,14 @@ void VkContext::createLogicalDevice() {
 }
 
 void VkContext::createAllocator() {
-  VmaAllocatorCreateInfo allocatorInfo{};
-  allocatorInfo.flags = VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |
-                        VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
-  allocatorInfo.physicalDevice = _physicalDevice;
-  allocatorInfo.device = _device;
-  allocatorInfo.instance = _instance;
-  allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+  VmaAllocatorCreateInfo allocatorInfo{
+      .flags = VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |
+               VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT,
+      .physicalDevice = _physicalDevice,
+      .device = _device,
+      .instance = _instance,
+      .vulkanApiVersion = VK_API_VERSION_1_3,
+  };
 
   const VkResult createAllocatorResult =
       vmaCreateAllocator(&allocatorInfo, &_allocator);
@@ -422,9 +433,11 @@ void VkContext::createAllocator() {
 }
 
 void VkContext::createCommandPool() {
-  VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  poolInfo.queueFamilyIndex = _queueFamilies.graphicsFamily.value();
+  VkCommandPoolCreateInfo poolInfo{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+      .queueFamilyIndex = _queueFamilies.graphicsFamily.value(),
+  };
   const VkResult createCommandPoolResult =
       vkCreateCommandPool(_device, &poolInfo, nullptr, &_commandPool);
   assert(createCommandPoolResult == VK_SUCCESS &&
@@ -467,8 +480,10 @@ VkExtent2D VkContext::chooseSwapExtent(
   int width = 0;
   int height = 0;
   glfwGetFramebufferSize(_window, &width, &height);
-  VkExtent2D extent{static_cast<uint32_t>(width),
-                    static_cast<uint32_t>(height)};
+  VkExtent2D extent{
+      .width = static_cast<uint32_t>(width),
+      .height = static_cast<uint32_t>(height),
+  };
   extent.width = clamp(extent.width, capabilities.minImageExtent.width,
                        capabilities.maxImageExtent.width);
   extent.height = clamp(extent.height, capabilities.minImageExtent.height,
@@ -489,14 +504,19 @@ void VkContext::createSwapChain() {
   }
 
   VkSwapchainCreateInfoKHR createInfo{
-      VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-  createInfo.surface = _surface;
-  createInfo.minImageCount = imageCount;
-  createInfo.imageFormat = surfaceFormat.format;
-  createInfo.imageColorSpace = surfaceFormat.colorSpace;
-  createInfo.imageExtent = extent;
-  createInfo.imageArrayLayers = 1;
-  createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = _surface,
+      .minImageCount = imageCount,
+      .imageFormat = surfaceFormat.format,
+      .imageColorSpace = surfaceFormat.colorSpace,
+      .imageExtent = extent,
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .preTransform = support.capabilities.currentTransform,
+      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+      .presentMode = presentMode,
+      .clipped = VK_TRUE,
+  };
 
   uint32_t queueFamilyIndices[] = {_queueFamilies.graphicsFamily.value(),
                                    _queueFamilies.presentFamily.value()};
@@ -507,11 +527,6 @@ void VkContext::createSwapChain() {
   } else {
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
   }
-
-  createInfo.preTransform = support.capabilities.currentTransform;
-  createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  createInfo.presentMode = presentMode;
-  createInfo.clipped = VK_TRUE;
 
   const VkResult createSwapChainResult =
       vkCreateSwapchainKHR(_device, &createInfo, nullptr, &_swapChain);
@@ -536,15 +551,18 @@ void VkContext::createImageViews() {
 
 VkImageView VkContext::createImageView(VkImage image, VkFormat format,
                                        VkImageAspectFlags aspectFlags) const {
-  VkImageViewCreateInfo createInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-  createInfo.image = image;
-  createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-  createInfo.format = format;
-  createInfo.subresourceRange.aspectMask = aspectFlags;
-  createInfo.subresourceRange.baseMipLevel = 0;
-  createInfo.subresourceRange.levelCount = 1;
-  createInfo.subresourceRange.baseArrayLayer = 0;
-  createInfo.subresourceRange.layerCount = 1;
+  VkImageViewCreateInfo createInfo{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image = image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = format,
+      .subresourceRange =
+          {
+              .aspectMask = aspectFlags,
+              .levelCount = 1,
+              .layerCount = 1,
+          },
+  };
 
   VkImageView imageView = VK_NULL_HANDLE;
   const VkResult createImageViewResult =
@@ -564,10 +582,11 @@ void VkContext::createDepthResources() {
 void VkContext::createCommandBuffers() {
   _commandBuffers.resize(kMaxFramesInFlight);
   VkCommandBufferAllocateInfo allocInfo{
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-  allocInfo.commandPool = _commandPool;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = _commandPool,
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = static_cast<uint32_t>(_commandBuffers.size()),
+  };
   const VkResult allocateCommandBuffersResult =
       vkAllocateCommandBuffers(_device, &allocInfo, _commandBuffers.data());
   assert(allocateCommandBuffersResult == VK_SUCCESS &&
@@ -579,9 +598,13 @@ void VkContext::createSyncObjects() {
   _renderFinishedSemaphores.resize(_swapChainImageViews.size());
   _inFlightFences.resize(kMaxFramesInFlight);
 
-  VkSemaphoreCreateInfo semaphoreInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-  VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-  fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+  VkSemaphoreCreateInfo semaphoreInfo{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+  };
+  VkFenceCreateInfo fenceInfo{
+      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+      .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+  };
 
   for (size_t i = 0; i < kMaxFramesInFlight; ++i) {
     const VkResult createImageAvailableSemaphoreResult = vkCreateSemaphore(
@@ -603,13 +626,14 @@ void VkContext::createSyncObjects() {
 }
 
 FrameContext VkContext::beginFrame() {
-  FrameContext frame{};
-  frame.frameIndex = _currentFrame;
-  frame.commandBuffer = _commandBuffers[_currentFrame];
-  frame.depthImage = _depthImage.image;
-  frame.depthImageView = _depthImage.view;
-  frame.imageAvailableSemaphore = _imageAvailableSemaphores[_currentFrame];
-  frame.inFlightFence = _inFlightFences[_currentFrame];
+  FrameContext frame{
+      .frameIndex = _currentFrame,
+      .commandBuffer = _commandBuffers[_currentFrame],
+      .depthImage = _depthImage.image,
+      .depthImageView = _depthImage.view,
+      .imageAvailableSemaphore = _imageAvailableSemaphores[_currentFrame],
+      .inFlightFence = _inFlightFences[_currentFrame],
+  };
 
   vkWaitForFences(_device, 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
 
@@ -634,14 +658,16 @@ void VkContext::endFrame(const FrameContext &frame) {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
   VkSemaphore signalSemaphores[] = {frame.renderFinishedSemaphore};
 
-  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-  submitInfo.waitSemaphoreCount = 1;
-  submitInfo.pWaitSemaphores = waitSemaphores;
-  submitInfo.pWaitDstStageMask = waitStages;
-  submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &frame.commandBuffer;
-  submitInfo.signalSemaphoreCount = 1;
-  submitInfo.pSignalSemaphores = signalSemaphores;
+  VkSubmitInfo submitInfo{
+      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores = waitSemaphores,
+      .pWaitDstStageMask = waitStages,
+      .commandBufferCount = 1,
+      .pCommandBuffers = &frame.commandBuffer,
+      .signalSemaphoreCount = 1,
+      .pSignalSemaphores = signalSemaphores,
+  };
 
   const VkResult queueSubmitResult =
       vkQueueSubmit(_graphicsQueue, 1, &submitInfo, frame.inFlightFence);
@@ -649,12 +675,14 @@ void VkContext::endFrame(const FrameContext &frame) {
          "failed to submit draw command buffer");
 
   VkSwapchainKHR swapChains[] = {_swapChain};
-  VkPresentInfoKHR presentInfo{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-  presentInfo.waitSemaphoreCount = 1;
-  presentInfo.pWaitSemaphores = signalSemaphores;
-  presentInfo.swapchainCount = 1;
-  presentInfo.pSwapchains = swapChains;
-  presentInfo.pImageIndices = &frame.imageIndex;
+  VkPresentInfoKHR presentInfo{
+      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores = signalSemaphores,
+      .swapchainCount = 1,
+      .pSwapchains = swapChains,
+      .pImageIndices = &frame.imageIndex,
+  };
 
   const VkResult result = vkQueuePresentKHR(_presentQueue, &presentInfo);
   assert(result == VK_SUCCESS && "failed to present swap chain image");
@@ -663,32 +691,41 @@ void VkContext::endFrame(const FrameContext &frame) {
 }
 
 RenderTargetInfo VkContext::renderTargetInfo() const {
-  return {_swapChainImageFormat, VK_FORMAT_D32_SFLOAT, _swapChainExtent};
+  return {
+      .colorFormat = _swapChainImageFormat,
+      .depthFormat = VK_FORMAT_D32_SFLOAT,
+      .extent = _swapChainExtent,
+  };
 }
 
 void VkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer,
                            VkDeviceSize size) {
   VkCommandBufferAllocateInfo allocInfo{
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandPool = _commandPool;
-  allocInfo.commandBufferCount = 1;
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = _commandPool,
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1,
+  };
   VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
   vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
 
   VkCommandBufferBeginInfo beginInfo{
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+  };
   vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
-  VkBufferCopy copyRegion{};
-  copyRegion.size = size;
+  VkBufferCopy copyRegion{
+      .size = size,
+  };
   vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
   vkEndCommandBuffer(commandBuffer);
 
-  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-  submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &commandBuffer;
+  VkSubmitInfo submitInfo{
+      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      .commandBufferCount = 1,
+      .pCommandBuffers = &commandBuffer,
+  };
   vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
   vkQueueWaitIdle(_graphicsQueue);
   vkFreeCommandBuffers(_device, _commandPool, 1, &commandBuffer);
@@ -697,9 +734,10 @@ void VkContext::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer,
 VkShaderModule
 VkContext::createShaderModule(const std::vector<char> &code) const {
   VkShaderModuleCreateInfo createInfo{
-      VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-  createInfo.codeSize = code.size();
-  createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .codeSize = code.size(),
+      .pCode = reinterpret_cast<const uint32_t *>(code.data()),
+  };
 
   VkShaderModule shaderModule = VK_NULL_HANDLE;
   const VkResult createShaderModuleResult =
@@ -713,23 +751,24 @@ void VkContext::createImage(uint32_t width, uint32_t height, VkFormat format,
                             VkImageUsageFlags usage,
                             VkMemoryPropertyFlags properties,
                             VkContext::Image &image) const {
-  VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-  imageInfo.imageType = VK_IMAGE_TYPE_2D;
-  imageInfo.extent.width = width;
-  imageInfo.extent.height = height;
-  imageInfo.extent.depth = 1;
-  imageInfo.mipLevels = 1;
-  imageInfo.arrayLayers = 1;
-  imageInfo.format = format;
-  imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageInfo.usage = usage;
-  imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  VkImageCreateInfo imageInfo{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .format = format,
+      .extent = {.width = width, .height = height, .depth = 1},
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = VK_SAMPLE_COUNT_1_BIT,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = usage,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+  };
 
-  VmaAllocationCreateInfo allocationInfo{};
-  allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-  allocationInfo.requiredFlags = properties;
+  VmaAllocationCreateInfo allocationInfo{
+      .usage = VMA_MEMORY_USAGE_AUTO,
+      .requiredFlags = properties,
+  };
 
   const VkResult createImageResult =
       vmaCreateImage(_allocator, &imageInfo, &allocationInfo, &image.image,

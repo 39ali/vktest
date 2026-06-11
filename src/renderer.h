@@ -90,6 +90,9 @@ private:
   void recordComputeCull(VkCommandBuffer commandBuffer,
                          VkBuffer counterReadbackBuffer,
                          const CameraCullData &cullData);
+  void recordRenderingCommands(VkCommandBuffer commandBuffer,
+                               const FrameContext &frame,
+                               const glm::mat4 &viewProjection, float dt);
   void renderImgui(VkCommandBuffer commandBuffer, float dt);
   void cleanupImgui();
 

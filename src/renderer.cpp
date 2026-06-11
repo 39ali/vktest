@@ -810,10 +810,7 @@ void Renderer::cleanupImgui() {
 void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
                                  VkBuffer counterReadbackBuffer,
                                  const CameraCullData &cullData) {
-  if (_candidateMeshlets.empty()) {
-    return;
-  }
-
+  // reset buffers
   vkCmdFillBuffer(commandBuffer, _renderBucket.counterBuffer.buffer, 0,
                   sizeof(RenderCounters), 0);
   vkCmdFillBuffer(commandBuffer, _renderBucket.drawArgumentBuffer.buffer, 0,
@@ -962,16 +959,8 @@ void Renderer::renderImgui(VkCommandBuffer commandBuffer, float dt) {
   const char *buttonLabel = _indirectMode == IndirectMode::MultiDraw
                                 ? "Switch to SingleDraw"
                                 : "Switch to MultiDraw";
-  const bool disableButton =
-      !multiDrawSupported && _indirectMode == IndirectMode::SingleDraw;
-  if (disableButton) {
-    ImGui::BeginDisabled();
-  }
   if (ImGui::Button(buttonLabel)) {
     _switchIndirectModeRequested = true;
-  }
-  if (disableButton) {
-    ImGui::EndDisabled();
   }
   ImGui::End();
 
@@ -979,22 +968,10 @@ void Renderer::renderImgui(VkCommandBuffer commandBuffer, float dt) {
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
 }
 
-void Renderer::recordCommandBuffer(const FrameContext &frame,
-                                   const glm::mat4 &viewProjection,
-                                   const CameraCullData &cullData, float dt) {
-  VkCommandBuffer commandBuffer = frame.commandBuffer;
-  VkCommandBufferBeginInfo beginInfo{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-  };
-  const VkResult beginCommandBufferResult =
-      vkBeginCommandBuffer(commandBuffer, &beginInfo);
-  assert(beginCommandBufferResult == VK_SUCCESS &&
-         "failed to begin recording command buffer");
-
-  recordComputeCull(
-      commandBuffer,
-      _renderBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
-
+void Renderer::recordRenderingCommands(VkCommandBuffer commandBuffer,
+                                       const FrameContext &frame,
+                                       const glm::mat4 &viewProjection,
+                                       float dt) {
   std::array<VkImageMemoryBarrier, 2> beginRenderingBarriers{{
       {
           .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -1063,6 +1040,7 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
       .pDepthAttachment = &depthAttachment,
   };
 
+  // rendering
   vkCmdBeginRendering(commandBuffer, &renderingInfo);
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                     _graphicsPipeline);
@@ -1103,6 +1081,24 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &presentBarrier);
+}
+
+void Renderer::recordCommandBuffer(const FrameContext &frame,
+                                   const glm::mat4 &viewProjection,
+                                   const CameraCullData &cullData, float dt) {
+  VkCommandBuffer commandBuffer = frame.commandBuffer;
+  VkCommandBufferBeginInfo beginInfo{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+  };
+  const VkResult beginCommandBufferResult =
+      vkBeginCommandBuffer(commandBuffer, &beginInfo);
+  assert(beginCommandBufferResult == VK_SUCCESS &&
+         "failed to begin recording command buffer");
+
+  recordComputeCull(
+      commandBuffer,
+      _renderBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
+  recordRenderingCommands(commandBuffer, frame, viewProjection, dt);
 
   const VkResult endCommandBufferResult = vkEndCommandBuffer(commandBuffer);
   assert(endCommandBufferResult == VK_SUCCESS &&

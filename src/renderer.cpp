@@ -86,10 +86,11 @@ void Renderer::init() {
   createDescriptorPool();
   createDescriptorSet();
   for (Buffer<RenderCounters> &buffer : _renderBucket.counterReadbackBuffers) {
-    createBuffer(sizeof(RenderCounters), VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 buffer);
+    _vkContext.createBuffer(sizeof(RenderCounters),
+                            VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                            buffer);
   }
   createImgui();
 }
@@ -101,18 +102,18 @@ void Renderer::cleanup() {
     cleanupImgui();
     for (Buffer<RenderCounters> &buffer :
          _renderBucket.counterReadbackBuffers) {
-      destroyBuffer(buffer);
+      _vkContext.destroyBuffer(buffer);
     }
-    destroyBuffer(_renderBucket.meshletDrawMetaBuffer);
-    destroyBuffer(_renderBucket.drawArgumentBuffer);
-    destroyBuffer(_renderBucket.counterBuffer);
-    destroyBuffer(_renderBucket.visibleMeshletBuffer);
-    destroyBuffer(_renderBucket.candidateMeshletBuffer);
-    destroyBuffer(_instanceBuffer);
-    destroyBuffer(_clusterTriangleBuffer);
-    destroyBuffer(_meshletVertexRefBuffer);
-    destroyBuffer(_clusterVertexBuffer);
-    destroyBuffer(_meshletBuffer);
+    _vkContext.destroyBuffer(_renderBucket.meshletDrawMetaBuffer);
+    _vkContext.destroyBuffer(_renderBucket.drawArgumentBuffer);
+    _vkContext.destroyBuffer(_renderBucket.counterBuffer);
+    _vkContext.destroyBuffer(_renderBucket.visibleMeshletBuffer);
+    _vkContext.destroyBuffer(_renderBucket.candidateMeshletBuffer);
+    _vkContext.destroyBuffer(_instanceBuffer);
+    _vkContext.destroyBuffer(_clusterTriangleBuffer);
+    _vkContext.destroyBuffer(_meshletVertexRefBuffer);
+    _vkContext.destroyBuffer(_clusterVertexBuffer);
+    _vkContext.destroyBuffer(_meshletBuffer);
     vkDestroyPipeline(_vkContext.device(), _computePipeline, nullptr);
     vkDestroyPipeline(_vkContext.device(), _graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(_vkContext.device(), _pipelineLayout, nullptr);
@@ -617,14 +618,14 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
 
   if (_frameInstances.size() > _instanceBufferCapacity) {
     _vkContext.waitIdle();
-    destroyBuffer(_instanceBuffer);
+    _vkContext.destroyBuffer(_instanceBuffer);
     _instanceBufferCapacity = _frameInstances.size();
     const VkDeviceSize capacitySize =
         sizeof(InstanceData) * _instanceBufferCapacity;
-    createBuffer(capacitySize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 _instanceBuffer);
+    _vkContext.createBuffer(capacitySize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                            _instanceBuffer);
     updateInstanceDescriptorSet();
   }
 
@@ -651,12 +652,12 @@ bool Renderer::uploadHostBuffer(const std::vector<T> &source,
   const VkDeviceSize bufferSize = sizeof(source[0]) * source.size();
   if (source.size() > capacity) {
     _vkContext.waitIdle();
-    destroyBuffer(target);
+    _vkContext.destroyBuffer(target);
     capacity = source.size();
-    createBuffer(sizeof(source[0]) * capacity, usage,
-                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 target);
+    _vkContext.createBuffer(sizeof(source[0]) * capacity, usage,
+                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                            target);
     recreated = true;
   }
 
@@ -678,12 +679,12 @@ void Renderer::uploadRenderBucket() {
 
   if (_candidateMeshlets.size() > _visibleMeshletCapacity) {
     _vkContext.waitIdle();
-    destroyBuffer(_renderBucket.visibleMeshletBuffer);
+    _vkContext.destroyBuffer(_renderBucket.visibleMeshletBuffer);
     _visibleMeshletCapacity = _candidateMeshlets.size();
-    createBuffer(sizeof(MeshletInstance) * _visibleMeshletCapacity,
-                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 _renderBucket.visibleMeshletBuffer);
+    _vkContext.createBuffer(sizeof(MeshletInstance) * _visibleMeshletCapacity,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                            _renderBucket.visibleMeshletBuffer);
     recreated = true;
   }
 
@@ -693,19 +694,19 @@ void Renderer::uploadRenderBucket() {
           : 1;
   if (requiredDrawArgumentCount > _drawArgumentCapacity) {
     _vkContext.waitIdle();
-    destroyBuffer(_renderBucket.drawArgumentBuffer);
+    _vkContext.destroyBuffer(_renderBucket.drawArgumentBuffer);
     _drawArgumentCapacity = requiredDrawArgumentCount;
-    createBuffer(sizeof(DrawIndirectCommand) * _drawArgumentCapacity,
-                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 _renderBucket.drawArgumentBuffer);
+    _vkContext.createBuffer(sizeof(DrawIndirectCommand) * _drawArgumentCapacity,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                            _renderBucket.drawArgumentBuffer);
     recreated = true;
   }
 
   if (_renderBucket.counterBuffer.buffer == VK_NULL_HANDLE) {
-    createBuffer(
+    _vkContext.createBuffer(
         sizeof(RenderCounters),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -736,63 +737,27 @@ template <typename T>
 void Renderer::uploadDeviceLocalBuffer(const std::vector<T> &source,
                                        VkBufferUsageFlags usage,
                                        Buffer<T> &target) {
-  destroyBuffer(target);
+  _vkContext.destroyBuffer(target);
   if (source.empty()) {
     return;
   }
 
   const VkDeviceSize bufferSize = sizeof(source[0]) * source.size();
   Buffer<T> staging;
-  createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-               staging);
+  _vkContext.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          staging);
 
   void *data = nullptr;
   vmaMapMemory(_vkContext.allocator(), staging.allocation, &data);
   std::memcpy(data, source.data(), static_cast<size_t>(bufferSize));
   vmaUnmapMemory(_vkContext.allocator(), staging.allocation);
 
-  createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage,
-               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, target);
+  _vkContext.createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage,
+                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, target);
   _vkContext.copyBuffer(staging.buffer, target.buffer, bufferSize);
-  destroyBuffer(staging);
-}
-
-template <typename T>
-void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
-                            VkMemoryPropertyFlags properties,
-                            Buffer<T> &buffer) {
-  VkBufferCreateInfo bufferInfo{
-      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-      .size = size,
-      .usage = usage,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-  };
-
-  VmaAllocationCreateInfo allocationInfo{
-      .usage = VMA_MEMORY_USAGE_AUTO,
-      .requiredFlags = properties,
-  };
-  if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-    const bool readbackBuffer = (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
-                                !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    allocationInfo.flags =
-        readbackBuffer ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
-                       : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-  }
-
-  const VkResult createBufferResult =
-      vmaCreateBuffer(_vkContext.allocator(), &bufferInfo, &allocationInfo,
-                      &buffer.buffer, &buffer.allocation, nullptr);
-  assert(createBufferResult == VK_SUCCESS && "failed to create buffer");
-}
-
-template <typename T> void Renderer::destroyBuffer(Buffer<T> &buffer) {
-  if (buffer.buffer != VK_NULL_HANDLE) {
-    vmaDestroyBuffer(_vkContext.allocator(), buffer.buffer, buffer.allocation);
-  }
-  buffer = {};
+  _vkContext.destroyBuffer(staging);
 }
 
 void Renderer::cleanupImgui() {

@@ -7,14 +7,8 @@
 
 #include <filesystem>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 struct GLFWwindow;
-
-template <typename T> struct Buffer {
-  VkBuffer buffer = VK_NULL_HANDLE;
-  VmaAllocation allocation = VK_NULL_HANDLE;
-};
 
 struct MeshUploadInfo {
   uint32_t firstMeshlet = 0;
@@ -80,10 +74,6 @@ private:
   template <typename T>
   void uploadDeviceLocalBuffer(const std::vector<T> &source,
                                VkBufferUsageFlags usage, Buffer<T> &target);
-  template <typename T>
-  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
-                    VkMemoryPropertyFlags properties, Buffer<T> &buffer);
-  template <typename T> void destroyBuffer(Buffer<T> &buffer);
   void recordCommandBuffer(const FrameContext &frame,
                            const glm::mat4 &viewProjection,
                            const CameraCullData &cullData, float dt);

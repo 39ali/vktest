@@ -2,8 +2,8 @@
 
 #include <optional>
 #include <vector>
-#include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
+#include <vulkan/vulkan.h>
 
 struct GLFWwindow;
 
@@ -29,6 +29,11 @@ struct RenderTargetInfo {
   VkExtent2D extent{};
 };
 
+template <typename T> struct Buffer {
+  VkBuffer buffer = VK_NULL_HANDLE;
+  VmaAllocation allocation = VK_NULL_HANDLE;
+};
+
 class VkContext {
 public:
   explicit VkContext(GLFWwindow *window);
@@ -47,6 +52,10 @@ public:
   RenderTargetInfo renderTargetInfo() const;
   void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
   void waitIdle() const;
+  template <typename T>
+  void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                    VkMemoryPropertyFlags properties, Buffer<T> &buffer) const;
+  template <typename T> void destroyBuffer(Buffer<T> &buffer) const;
 
   VkDevice device() const { return _device; }
   VmaAllocator allocator() const { return _allocator; }
@@ -60,6 +69,7 @@ public:
     return static_cast<uint32_t>(_swapChainImages.size());
   }
   bool supportsMultiDrawIndirect() const { return _supportsMultiDrawIndirect; }
+
 private:
   struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -144,3 +154,39 @@ private:
 public:
   GLFWwindow *_window = nullptr;
 };
+
+template <typename T>
+void VkContext::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                             VkMemoryPropertyFlags properties,
+                             Buffer<T> &buffer) const {
+  VkBufferCreateInfo bufferInfo{
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size = size,
+      .usage = usage,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+  };
+
+  VmaAllocationCreateInfo allocationInfo{
+      .usage = VMA_MEMORY_USAGE_AUTO,
+      .requiredFlags = properties,
+  };
+  if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+    const bool readbackBuffer = (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
+                                !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    allocationInfo.flags =
+        readbackBuffer ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                       : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+  }
+
+  const VkResult createBufferResult =
+      vmaCreateBuffer(_allocator, &bufferInfo, &allocationInfo, &buffer.buffer,
+                      &buffer.allocation, nullptr);
+  assert(createBufferResult == VK_SUCCESS && "failed to create buffer");
+}
+
+template <typename T> void VkContext::destroyBuffer(Buffer<T> &buffer) const {
+  if (buffer.buffer != VK_NULL_HANDLE) {
+    vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+  }
+  buffer = {};
+}

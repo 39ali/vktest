@@ -871,7 +871,7 @@ void Renderer::renderImgui(VkCommandBuffer commandBuffer, float dt) {
   ImGui::Begin("stats", nullptr, flags);
   const float fps = dt > 0.0f ? 1000.0f / dt : 0.0f;
   ImGui::Text("FPS: %.2f", fps);
-  ImGui::Text("dt: %.3f ms", dt);
+  ImGui::Text("frame time: %.3f ms", dt);
   ImGui::Text("rendered meshlets: %u / %u", _stats.visibleMeshlets,
               _stats.totalMeshlets);
   ImGui::Text("rendered triangles: %u / %llu", _stats.visibleTriangles,

@@ -10,7 +10,7 @@ layout(push_constant) uniform PushConstants {
   vec4 frustum;
   vec2 zNearFar;
   uint candidateCount;
-  uint mode;
+  uint mode; // 0 = SingleDraw, 1 = MultiDraw
   uint meshletDrawCount;
 }
 pc;
@@ -48,15 +48,18 @@ layout(set = 0, binding = 8, std430) readonly buffer MeshletDrawMetaBuffer {
   MeshletDrawMeta meshletDrawMetas[];
 };
 
-vec3 toCullView(vec3 viewVector) { return vec3(viewVector.xy, -viewVector.z); }
+bool frustumCull(vec3 viewCenter, float radius) {
+  const float depth = -viewCenter.z;
 
-bool sphereVisible(vec3 cullCenter, float radius) {
-  const float z = cullCenter.z;
-
-  bool visible = z * pc.frustum.y - abs(cullCenter.x) * pc.frustum.x > -radius;
-  visible =
-      visible && z * pc.frustum.w - abs(cullCenter.y) * pc.frustum.z > -radius;
-  visible = visible && z + radius > pc.zNearFar.x && z - radius < pc.zNearFar.y;
+  // checks the left/right frustum planes
+  bool visible =
+      depth * pc.frustum.y - abs(viewCenter.x) * pc.frustum.x > -radius;
+  // top/bottom
+  visible = visible &&
+            depth * pc.frustum.w - abs(viewCenter.y) * pc.frustum.z > -radius;
+  // near/far
+  visible = visible && depth + radius > pc.zNearFar.x &&
+            depth - radius < pc.zNearFar.y;
   return visible;
 }
 
@@ -66,10 +69,10 @@ bool coneCull(vec3 center, float radius, vec3 coneAxis, float coneCutoff,
   return dot(view, coneAxis) >= coneCutoff * length(view) + radius;
 }
 
-bool coneBackfacing(vec3 viewCenter, float worldRadius, Meshlet meshlet,
-                    InstanceData instance) {
-  vec4 cone = unpackSnorm4x8(meshlet.boundingCone);
-  vec3 worldAxis = normalize(rotateByQuat(cone.xyz, instance.rotation));
+bool coneBackfacing(vec3 viewCenter, float worldRadius, uint boundingCone,
+                    vec4 rotation) {
+  vec4 cone = unpackSnorm4x8(boundingCone);
+  vec3 worldAxis = normalize(rotateByQuat(cone.xyz, rotation));
   vec3 viewAxis = normalize(mat3(pc.view) * worldAxis);
   return coneCull(viewCenter, worldRadius, viewAxis, cone.w, vec3(0.0));
 }
@@ -109,29 +112,28 @@ void main() {
   float worldRadius =
       boundingSphere.w * max(max(abs(scale.x), abs(scale.y)), abs(scale.z));
   vec3 viewCenter = (pc.view * vec4(worldCenter, 1.0)).xyz;
-  vec3 cullCenter = toCullView(viewCenter);
 
-  if (!sphereVisible(cullCenter, worldRadius)) {
+  if (!frustumCull(viewCenter, worldRadius)) {
     return;
   }
-  if (coneBackfacing(viewCenter, worldRadius, meshlet, instance)) {
+  if (coneBackfacing(viewCenter, worldRadius, meshlet.boundingCone,
+                     instance.rotation)) {
     return;
   }
 
+  atomicAdd(counters.visibleMeshletCount, 1u);
+  atomicAdd(counters.visibleTriangleCount, meshletTriangleCount(meshlet));
+
+  uint visibleId = 0u;
   if (pc.mode == 0u) {
-    atomicAdd(counters.visibleMeshletCount, 1u);
-    atomicAdd(counters.visibleTriangleCount, meshletTriangleCount(meshlet));
-    const uint visibleId = atomicAdd(drawCommands[0].instanceCount, 1u);
-    visibleMeshlets[visibleId].instanceId = candidate.instanceId;
-    visibleMeshlets[visibleId].meshletId = candidate.meshletId;
+    visibleId = atomicAdd(drawCommands[0].instanceCount, 1u);
   } else {
-    atomicAdd(counters.visibleMeshletCount, 1u);
-    atomicAdd(counters.visibleTriangleCount, meshletTriangleCount(meshlet));
     MeshletDrawMeta meta = meshletDrawMetas[candidate.meshletId];
     const uint meshletInstanceId =
         atomicAdd(drawCommands[candidate.meshletId].instanceCount, 1u);
-    const uint visibleId = meta.visibleInstanceOffset + meshletInstanceId;
-    visibleMeshlets[visibleId].instanceId = candidate.instanceId;
-    visibleMeshlets[visibleId].meshletId = candidate.meshletId;
+    visibleId = meta.visibleInstanceOffset + meshletInstanceId;
   }
+
+  visibleMeshlets[visibleId].instanceId = candidate.instanceId;
+  visibleMeshlets[visibleId].meshletId = candidate.meshletId;
 }

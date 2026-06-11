@@ -3,9 +3,7 @@
 
 #include "shared_structs.h"
 
-layout(push_constant) uniform PushConstants {
-  mat4 mvp;
-}
+layout(push_constant) uniform PushConstants { mat4 mvp; }
 pc;
 
 layout(location = 0) out vec3 outNormal;
@@ -56,16 +54,19 @@ void main() {
     return;
   }
 
-  uint packedTriangle = clusterTriangles[meshlet.triangleOffset + triangleIndex];
+  uint packedTriangle =
+      clusterTriangles[meshlet.triangleOffset + triangleIndex];
+  // extracts one of the three 10-bit local vertex indices from the packed
+  // triangle.
   uint clusterVertexIndex = (packedTriangle >> (triangleCorner * 10u)) & 0x3ffu;
-  uint vertexIndex = meshletVertexRefs[meshlet.vertexOffset + clusterVertexIndex];
+  uint vertexIndex =
+      meshletVertexRefs[meshlet.vertexOffset + clusterVertexIndex];
   MeshletVertex vertex = vertices[vertexIndex];
 
   vec2 positionXY = unpackHalf2x16(vertex.positionXY);
   vec2 positionZNormalX = unpackHalf2x16(vertex.positionZNormalX);
   vec2 normalYZ = unpackHalf2x16(vertex.normalYZ);
-  vec3 localPosition =
-      vec3(positionXY.x, positionXY.y, positionZNormalX.x);
+  vec3 localPosition = vec3(positionXY.x, positionXY.y, positionZNormalX.x);
   vec3 position = localPosition;
   vec3 normal = normalize(vec3(positionZNormalX.y, normalYZ.x, normalYZ.y));
 

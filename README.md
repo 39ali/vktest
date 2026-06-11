@@ -1,29 +1,10 @@
 # vktest
 
-Minimal Vulkan glTF foundation inspired by Sascha Willems' `gltfloading.cpp`.
-
-The app creates a GLFW window, initializes Vulkan, loads a glTF file through
-tinygltf, flattens scene nodes into one vertex buffer and one index buffer, and
-uploads both through host-visible staging buffers into device-local buffers.
+this project is a Vulkan 1.3 meshlet renderer that loads glTF models, builds CPU meshlets with meshoptimizer, and renders many randomized model instances using GPU-driven indirect drawing. Each frame, a compute shader performs per-meshlet frustum sphere culling and meshlet cone backface culling, writes the surviving meshlet instances and indirect draw commands, then the graphics pass renders them with simple Lambert lighting and an ImGui stats overlay.
 
 ## Build
 
-```powershell
+```
 cmake -S . -B build
-cmake --build build --config Debug
+cmake --build build --config Release
 ```
-
-Run with the bundled Duck glTF sample:
-
-```powershell
-.\build\Debug\vktest.exe
-```
-
-Or pass another `.gltf`/`.glb`:
-
-```powershell
-.\build\Debug\vktest.exe C:\path\to\model.gltf
-```
-
-The first configure may download GLFW, glm, and tinygltf if they are not already
-available through CMake packages.

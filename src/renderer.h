@@ -59,9 +59,12 @@ private:
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
   void createCullingPipeline();
+  void createDepthPyramidPipeline();
+  void createDepthPyramidResources();
   void createImgui();
   void createDescriptorPool();
   void createDescriptorSet();
+  void updateDepthPyramidDescriptorSet();
   void updateInstanceDescriptorSet();
   void updateMeshDescriptorSet();
   void updateRenderBucketDescriptorSet();
@@ -80,6 +83,9 @@ private:
   void recordComputeCull(VkCommandBuffer commandBuffer,
                          VkBuffer counterReadbackBuffer,
                          const CameraCullData &cullData);
+  void recordDepthPyramid(VkCommandBuffer commandBuffer,
+                          const FrameContext &frame,
+                          const CameraCullData &cullData);
   void recordRenderingCommands(VkCommandBuffer commandBuffer,
                                const FrameContext &frame,
                                const glm::mat4 &viewProjection, float dt);
@@ -103,6 +109,7 @@ private:
   VkPipelineLayout _pipelineLayout = VK_NULL_HANDLE;
   VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
   VkPipeline _computePipeline = VK_NULL_HANDLE;
+  VkPipeline _depthPyramidPipeline = VK_NULL_HANDLE;
   VkDescriptorPool _descriptorPool = VK_NULL_HANDLE;
   VkDescriptorPool _imguiDescriptorPool = VK_NULL_HANDLE;
   VkDescriptorSet _descriptorSet = VK_NULL_HANDLE;
@@ -112,6 +119,7 @@ private:
   Buffer<uint32_t> _clusterTriangleBuffer;
   Buffer<InstanceData> _instanceBuffer;
   RenderBucket _renderBucket;
+  Texture _depthPyramid;
   size_t _instanceBufferCapacity = 0;
   size_t _candidateMeshletCapacity = 0;
   size_t _visibleMeshletCapacity = 0;
@@ -119,4 +127,6 @@ private:
   size_t _meshletDrawMetaCapacity = 0;
   RenderStats _stats;
   bool _switchIndirectModeRequested = false;
+  bool _hzbEnabled = true;
+  bool _depthPyramidReady = false;
 };

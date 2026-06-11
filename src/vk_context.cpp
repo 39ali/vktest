@@ -551,29 +551,14 @@ void VkContext::createImageViews() {
 
 VkImageView VkContext::createImageView(VkImage image, VkFormat format,
                                        VkImageAspectFlags aspectFlags) const {
-  VkImageViewCreateInfo createInfo{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .image = image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = format,
-      .subresourceRange =
-          {
-              .aspectMask = aspectFlags,
-              .levelCount = 1,
-              .layerCount = 1,
-          },
-  };
-
-  VkImageView imageView = VK_NULL_HANDLE;
-  const VkResult createImageViewResult =
-      vkCreateImageView(_device, &createInfo, nullptr, &imageView);
-  assert(createImageViewResult == VK_SUCCESS && "failed to create image view");
-  return imageView;
+  return createImageView(image, format, aspectFlags, 0, 1);
 }
 
 void VkContext::createDepthResources() {
   createImage(_swapChainExtent.width, _swapChainExtent.height,
-              VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+              VK_FORMAT_D32_SFLOAT,
+              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                  VK_IMAGE_USAGE_SAMPLED_BIT,
               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depthImage);
   _depthImage.view = createImageView(_depthImage.image, VK_FORMAT_D32_SFLOAT,
                                      VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -751,12 +736,20 @@ void VkContext::createImage(uint32_t width, uint32_t height, VkFormat format,
                             VkImageUsageFlags usage,
                             VkMemoryPropertyFlags properties,
                             VkContext::Image &image) const {
+  createImage(width, height, 1, format, usage, properties, image.image,
+              image.allocation);
+}
+
+void VkContext::createImage(uint32_t width, uint32_t height, uint32_t mipCount,
+                            VkFormat format, VkImageUsageFlags usage,
+                            VkMemoryPropertyFlags properties, VkImage &image,
+                            VmaAllocation &allocation) const {
   VkImageCreateInfo imageInfo{
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = format,
       .extent = {.width = width, .height = height, .depth = 1},
-      .mipLevels = 1,
+      .mipLevels = mipCount,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -771,7 +764,48 @@ void VkContext::createImage(uint32_t width, uint32_t height, VkFormat format,
   };
 
   const VkResult createImageResult =
-      vmaCreateImage(_allocator, &imageInfo, &allocationInfo, &image.image,
-                     &image.allocation, nullptr);
+      vmaCreateImage(_allocator, &imageInfo, &allocationInfo, &image,
+                     &allocation, nullptr);
   assert(createImageResult == VK_SUCCESS && "failed to create image");
+}
+
+VkImageView VkContext::createImageView(VkImage image, VkFormat format,
+                                       VkImageAspectFlags aspectFlags,
+                                       uint32_t baseMipLevel,
+                                       uint32_t levelCount) const {
+  VkImageViewCreateInfo createInfo{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image = image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = format,
+      .subresourceRange =
+          {
+              .aspectMask = aspectFlags,
+              .baseMipLevel = baseMipLevel,
+              .levelCount = levelCount,
+              .layerCount = 1,
+          },
+  };
+
+  VkImageView imageView = VK_NULL_HANDLE;
+  const VkResult createImageViewResult =
+      vkCreateImageView(_device, &createInfo, nullptr, &imageView);
+  assert(createImageViewResult == VK_SUCCESS && "failed to create image view");
+  return imageView;
+}
+
+void VkContext::destroyTexture(Texture &texture) const {
+  if (texture.sampler != VK_NULL_HANDLE) {
+    vkDestroySampler(_device, texture.sampler, nullptr);
+  }
+  for (VkImageView mipView : texture.mipViews) {
+    vkDestroyImageView(_device, mipView, nullptr);
+  }
+  if (texture.view != VK_NULL_HANDLE) {
+    vkDestroyImageView(_device, texture.view, nullptr);
+  }
+  if (texture.image != VK_NULL_HANDLE) {
+    vmaDestroyImage(_allocator, texture.image, texture.allocation);
+  }
+  texture = {};
 }

@@ -1,0 +1,51 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(push_constant) uniform PushConstants {
+  vec2 zNearFar;
+  uvec2 srcSize;
+  uvec2 dstSize;
+  uint srcMip;
+  uint dstMip;
+  uint inputIsDepth;
+}
+pc;
+
+layout(set = 0, binding = 10) uniform sampler2D hzbTexture;
+layout(set = 0, binding = 11) uniform sampler2D sceneDepth;
+layout(set = 0, binding = 12, r32f) uniform writeonly image2D hzbMips[16];
+
+float linearizeDepth(float depth) {
+  const float zNear = pc.zNearFar.x;
+  const float zFar = pc.zNearFar.y;
+  return (zNear * zFar) / (zFar - depth * (zFar - zNear));
+}
+
+float loadSourceDepth(ivec2 coord) {
+  coord = clamp(coord, ivec2(0), ivec2(pc.srcSize) - ivec2(1));
+  if (pc.inputIsDepth != 0u) {
+    return linearizeDepth(texelFetch(sceneDepth, coord, 0).r);
+  }
+  return texelFetch(hzbTexture, coord, int(pc.srcMip)).r;
+}
+
+void main() {
+  const ivec2 dstCoord = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(dstCoord, ivec2(pc.dstSize)))) {
+    return;
+  }
+
+  float depth = 0.0;
+  if (pc.inputIsDepth != 0u) {
+    depth = loadSourceDepth(dstCoord);
+  } else {
+    const ivec2 srcCoord = dstCoord * 2;
+    depth = max(max(loadSourceDepth(srcCoord),
+                    loadSourceDepth(srcCoord + ivec2(1, 0))),
+                max(loadSourceDepth(srcCoord + ivec2(0, 1)),
+                    loadSourceDepth(srcCoord + ivec2(1, 1))));
+  }
+
+  imageStore(hzbMips[pc.dstMip], dstCoord, vec4(depth));
+}

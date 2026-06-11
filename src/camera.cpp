@@ -104,6 +104,8 @@ CameraCullData Camera::cullData() const {
       .frustum = {std::cos(halfFovX), std::sin(halfFovX),
                   std::cos(halfFovY), std::sin(halfFovY)},
       .zNearFar = {_nearPlane, _farPlane},
+      .projectionScale = {1.0f / std::tan(halfFovX),
+                          1.0f / std::tan(halfFovY)},
   };
 }
 

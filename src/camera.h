@@ -8,6 +8,7 @@ struct CameraCullData {
   glm::mat4 view{1.0f};
   glm::vec4 frustum{1.0f};
   glm::vec2 zNearFar{0.01f, 1000.0f};
+  glm::vec2 projectionScale{1.0f};
 };
 
 class Camera {

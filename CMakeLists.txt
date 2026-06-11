@@ -79,6 +79,7 @@ set(SHADER_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/shaders/gltf.vert
   ${CMAKE_CURRENT_SOURCE_DIR}/shaders/gltf.frag
   ${CMAKE_CURRENT_SOURCE_DIR}/shaders/meshlet_cull.comp
+  ${CMAKE_CURRENT_SOURCE_DIR}/shaders/hzb_reduce.comp
 )
 
 set(SHADER_INCLUDES

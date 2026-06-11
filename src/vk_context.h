@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <optional>
 #include <vector>
 #include <vk_mem_alloc.h>
@@ -34,6 +35,17 @@ template <typename T> struct Buffer {
   VmaAllocation allocation = VK_NULL_HANDLE;
 };
 
+struct Texture {
+  VkImage image = VK_NULL_HANDLE;
+  VmaAllocation allocation = VK_NULL_HANDLE;
+  VkImageView view = VK_NULL_HANDLE;
+  std::vector<VkImageView> mipViews;
+  VkSampler sampler = VK_NULL_HANDLE;
+  uint32_t width = 0;
+  uint32_t height = 0;
+  uint32_t mipCount = 0;
+};
+
 class VkContext {
 public:
   explicit VkContext(GLFWwindow *window);
@@ -56,6 +68,15 @@ public:
   void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                     VkMemoryPropertyFlags properties, Buffer<T> &buffer) const;
   template <typename T> void destroyBuffer(Buffer<T> &buffer) const;
+  void createImage(uint32_t width, uint32_t height, uint32_t mipCount,
+                   VkFormat format, VkImageUsageFlags usage,
+                   VkMemoryPropertyFlags properties, VkImage &image,
+                   VmaAllocation &allocation) const;
+  VkImageView createImageView(VkImage image, VkFormat format,
+                              VkImageAspectFlags aspectFlags,
+                              uint32_t baseMipLevel,
+                              uint32_t levelCount) const;
+  void destroyTexture(Texture &texture) const;
 
   VkDevice device() const { return _device; }
   VmaAllocator allocator() const { return _allocator; }
@@ -68,6 +89,7 @@ public:
   uint32_t swapChainImageCount() const {
     return static_cast<uint32_t>(_swapChainImages.size());
   }
+  VkImageView depthImageView() const { return _depthImage.view; }
   bool supportsMultiDrawIndirect() const { return _supportsMultiDrawIndirect; }
 
 private:

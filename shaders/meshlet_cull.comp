@@ -9,9 +9,13 @@ layout(push_constant) uniform PushConstants {
   mat4 view;
   vec4 frustum;
   vec2 zNearFar;
+  vec2 projectionScale;
+  vec2 hzbSize;
   uint candidateCount;
   uint mode; // 0 = SingleDraw, 1 = MultiDraw
   uint meshletDrawCount;
+  uint hzbMipCount;
+  uint hzbEnabled;
 }
 pc;
 
@@ -48,6 +52,8 @@ layout(set = 0, binding = 8, std430) readonly buffer MeshletDrawMetaBuffer {
   MeshletDrawMeta meshletDrawMetas[];
 };
 
+layout(set = 0, binding = 10) uniform sampler2D hzbTexture;
+
 bool frustumCull(vec3 viewCenter, float radius) {
   const float depth = -viewCenter.z;
 
@@ -61,6 +67,61 @@ bool frustumCull(vec3 viewCenter, float radius) {
   visible = visible && depth + radius > pc.zNearFar.x &&
             depth - radius < pc.zNearFar.y;
   return visible;
+}
+
+// https://zeux.io/2023/01/12/approximate-projected-bounds/
+bool projectSphere(vec3 viewCenter, float radius, out vec4 uvBounds) {
+  vec3 center = vec3(viewCenter.xy, -viewCenter.z);
+  if (center.z < radius + pc.zNearFar.x) {
+    return false;
+  }
+
+  vec3 centerRadius = center * radius;
+  float zRadiusSquared = center.z * center.z - radius * radius;
+  float vx = sqrt(center.x * center.x + zRadiusSquared);
+  float minX =
+      (vx * center.x - centerRadius.z) / (vx * center.z + centerRadius.x);
+  float maxX =
+      (vx * center.x + centerRadius.z) / (vx * center.z - centerRadius.x);
+
+  float vy = sqrt(center.y * center.y + zRadiusSquared);
+  float minY =
+      (vy * center.y - centerRadius.z) / (vy * center.z + centerRadius.y);
+  float maxY =
+      (vy * center.y + centerRadius.z) / (vy * center.z - centerRadius.y);
+
+  vec2 ndc0 = vec2(minX * pc.projectionScale.x, minY * pc.projectionScale.y);
+  vec2 ndc1 = vec2(maxX * pc.projectionScale.x, maxY * pc.projectionScale.y);
+  vec2 uv0 = ndc0 * 0.5 + 0.5;
+  vec2 uv1 = ndc1 * 0.5 + 0.5;
+  uvBounds = vec4(min(uv0, uv1), max(uv0, uv1));
+  return true;
+}
+
+bool occlusionCull(vec3 viewCenter, float radius) {
+  if (pc.hzbEnabled == 0u) {
+    return false;
+  }
+
+  const float depth = -viewCenter.z;
+  const float nearestDepth = depth - radius;
+  vec4 uvBounds;
+  if (!projectSphere(viewCenter, radius, uvBounds)) {
+    return false;
+  }
+
+  vec2 uvMin = clamp(uvBounds.xy, vec2(0.0), vec2(1.0));
+  vec2 uvMax = clamp(uvBounds.zw, vec2(0.0), vec2(1.0));
+  vec2 pixelSize = max((uvMax - uvMin) * pc.hzbSize, vec2(1.0));
+  float mip = ceil(log2(max(pixelSize.x, pixelSize.y)));
+  mip = clamp(mip, 0.0, float(pc.hzbMipCount - 1u));
+
+  float hzbDepth =
+      max(max(textureLod(hzbTexture, uvMin, mip).r,
+              textureLod(hzbTexture, vec2(uvMax.x, uvMin.y), mip).r),
+          max(textureLod(hzbTexture, vec2(uvMin.x, uvMax.y), mip).r,
+              textureLod(hzbTexture, uvMax, mip).r));
+  return nearestDepth > hzbDepth;
 }
 
 bool coneCull(vec3 center, float radius, vec3 coneAxis, float coneCutoff,
@@ -118,6 +179,9 @@ void main() {
   }
   if (coneBackfacing(viewCenter, worldRadius, meshlet.boundingCone,
                      instance.rotation)) {
+    return;
+  }
+  if (occlusionCull(viewCenter, worldRadius)) {
     return;
   }
 

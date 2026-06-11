@@ -10,6 +10,8 @@
 #include <string>
 
 namespace {
+constexpr uint32_t kMaxDepthPyramidMips = 16;
+
 struct PushConstants {
   glm::mat4 viewProjection{1.0f};
 };
@@ -18,9 +20,23 @@ struct ComputePushConstants {
   glm::mat4 view{1.0f};
   glm::vec4 frustum{1.0f};
   glm::vec2 zNearFar{0.01f, 1000.0f};
+  glm::vec2 projectionScale{1.0f};
+  glm::vec2 hzbSize{1.0f};
   uint32_t candidateCount = 0;
   uint32_t mode = 0;
   uint32_t meshletDrawCount = 0;
+  uint32_t hzbMipCount = 0;
+  uint32_t hzbEnabled = 0;
+  uint32_t padding0 = 0;
+};
+
+struct DepthPyramidPushConstants {
+  glm::vec2 zNearFar{0.01f, 1000.0f};
+  glm::uvec2 srcSize{1, 1};
+  glm::uvec2 dstSize{1, 1};
+  uint32_t srcMip = 0;
+  uint32_t dstMip = 0;
+  uint32_t inputIsDepth = 0;
   uint32_t padding0 = 0;
 };
 
@@ -83,8 +99,11 @@ void Renderer::init() {
   createDescriptorSetLayout();
   createGraphicsPipeline();
   createCullingPipeline();
+  createDepthPyramidPipeline();
   createDescriptorPool();
   createDescriptorSet();
+  createDepthPyramidResources();
+  updateDepthPyramidDescriptorSet();
   for (Buffer<RenderCounters> &buffer : _renderBucket.counterReadbackBuffers) {
     _vkContext.createBuffer(sizeof(RenderCounters),
                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -114,6 +133,8 @@ void Renderer::cleanup() {
     _vkContext.destroyBuffer(_meshletVertexRefBuffer);
     _vkContext.destroyBuffer(_clusterVertexBuffer);
     _vkContext.destroyBuffer(_meshletBuffer);
+    _vkContext.destroyTexture(_depthPyramid);
+    vkDestroyPipeline(_vkContext.device(), _depthPyramidPipeline, nullptr);
     vkDestroyPipeline(_vkContext.device(), _computePipeline, nullptr);
     vkDestroyPipeline(_vkContext.device(), _graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(_vkContext.device(), _pipelineLayout, nullptr);
@@ -125,8 +146,8 @@ void Renderer::cleanup() {
 }
 
 void Renderer::createDescriptorSetLayout() {
-  std::array<VkDescriptorSetLayoutBinding, 10> bindings{};
-  for (uint32_t binding = 0; binding < bindings.size(); ++binding) {
+  std::array<VkDescriptorSetLayoutBinding, 13> bindings{};
+  for (uint32_t binding = 0; binding < 10; ++binding) {
     bindings[binding] = {
         .binding = binding,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -134,6 +155,24 @@ void Renderer::createDescriptorSetLayout() {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
     };
   }
+  bindings[10] = {
+      .binding = 10,
+      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .descriptorCount = 1,
+      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+  };
+  bindings[11] = {
+      .binding = 11,
+      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .descriptorCount = 1,
+      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+  };
+  bindings[12] = {
+      .binding = 12,
+      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+      .descriptorCount = kMaxDepthPyramidMips,
+      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+  };
 
   VkDescriptorSetLayoutCreateInfo layoutInfo{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -235,8 +274,9 @@ void Renderer::createGraphicsPipeline() {
   VkPushConstantRange pushConstantRange{
       .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
       .offset = 0,
-      .size = static_cast<uint32_t>(
-          maxValue(sizeof(PushConstants), sizeof(ComputePushConstants))),
+      .size = static_cast<uint32_t>(maxValue(
+          maxValue(sizeof(PushConstants), sizeof(ComputePushConstants)),
+          sizeof(DepthPyramidPushConstants))),
   };
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{
@@ -312,6 +352,32 @@ void Renderer::createCullingPipeline() {
   vkDestroyShaderModule(_vkContext.device(), shaderModule, nullptr);
 }
 
+void Renderer::createDepthPyramidPipeline() {
+  const auto shaderCode = _resources.readBinary("shaders/hzb_reduce.comp.spv");
+  const VkShaderModule shaderModule = _vkContext.createShaderModule(shaderCode);
+
+  VkPipelineShaderStageCreateInfo shaderStageInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+      .module = shaderModule,
+      .pName = "main",
+  };
+
+  VkComputePipelineCreateInfo pipelineInfo{
+      .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+      .stage = shaderStageInfo,
+      .layout = _pipelineLayout,
+  };
+
+  const VkResult createComputePipelineResult =
+      vkCreateComputePipelines(_vkContext.device(), VK_NULL_HANDLE, 1,
+                               &pipelineInfo, nullptr, &_depthPyramidPipeline);
+  assert(createComputePipelineResult == VK_SUCCESS &&
+         "failed to create depth pyramid pipeline");
+
+  vkDestroyShaderModule(_vkContext.device(), shaderModule, nullptr);
+}
+
 void Renderer::createImgui() {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -364,16 +430,26 @@ void Renderer::createImgui() {
 }
 
 void Renderer::createDescriptorPool() {
-  VkDescriptorPoolSize poolSize{
-      .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .descriptorCount = 10,
-  };
+  std::array<VkDescriptorPoolSize, 3> poolSizes{{
+      {
+          .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 10,
+      },
+      {
+          .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .descriptorCount = 2,
+      },
+      {
+          .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+          .descriptorCount = kMaxDepthPyramidMips,
+      },
+  }};
 
   VkDescriptorPoolCreateInfo poolInfo{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
       .maxSets = 1,
-      .poolSizeCount = 1,
-      .pPoolSizes = &poolSize,
+      .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+      .pPoolSizes = poolSizes.data(),
   };
 
   const VkResult createDescriptorPoolResult = vkCreateDescriptorPool(
@@ -395,6 +471,60 @@ void Renderer::createDescriptorSet() {
       _vkContext.device(), &allocInfo, &_descriptorSet);
   assert(allocateDescriptorSetResult == VK_SUCCESS &&
          "failed to allocate descriptor set");
+}
+
+void Renderer::updateDepthPyramidDescriptorSet() {
+  VkDescriptorImageInfo hzbTextureInfo{
+      .sampler = _depthPyramid.sampler,
+      .imageView = _depthPyramid.view,
+      .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+  };
+  VkDescriptorImageInfo sceneDepthInfo{
+      .sampler = _depthPyramid.sampler,
+      .imageView = _vkContext.depthImageView(),
+      .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+  };
+
+  std::array<VkDescriptorImageInfo, kMaxDepthPyramidMips> hzbMipInfos{};
+  for (uint32_t mip = 0; mip < hzbMipInfos.size(); ++mip) {
+    const uint32_t imageMip =
+        mip < _depthPyramid.mipCount ? mip : _depthPyramid.mipCount - 1u;
+    hzbMipInfos[mip] = {
+        .imageView = _depthPyramid.mipViews[imageMip],
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+  }
+
+  std::array<VkWriteDescriptorSet, 3> descriptorWrites{{
+      {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .dstSet = _descriptorSet,
+          .dstBinding = 10,
+          .descriptorCount = 1,
+          .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .pImageInfo = &hzbTextureInfo,
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .dstSet = _descriptorSet,
+          .dstBinding = 11,
+          .descriptorCount = 1,
+          .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .pImageInfo = &sceneDepthInfo,
+      },
+      {
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .dstSet = _descriptorSet,
+          .dstBinding = 12,
+          .descriptorCount = kMaxDepthPyramidMips,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+          .pImageInfo = hzbMipInfos.data(),
+      },
+  }};
+
+  vkUpdateDescriptorSets(_vkContext.device(),
+                         static_cast<uint32_t>(descriptorWrites.size()),
+                         descriptorWrites.data(), 0, nullptr);
 }
 
 void Renderer::updateInstanceDescriptorSet() {
@@ -760,6 +890,53 @@ void Renderer::uploadDeviceLocalBuffer(const std::vector<T> &source,
   _vkContext.destroyBuffer(staging);
 }
 
+void Renderer::createDepthPyramidResources() {
+  const RenderTargetInfo renderTarget = _vkContext.renderTargetInfo();
+  uint32_t mipCount = 1;
+  uint32_t mipWidth = renderTarget.extent.width;
+  uint32_t mipHeight = renderTarget.extent.height;
+  while ((mipWidth > 1 || mipHeight > 1) && mipCount < kMaxDepthPyramidMips) {
+    mipWidth = maxValue(mipWidth / 2u, 1u);
+    mipHeight = maxValue(mipHeight / 2u, 1u);
+    ++mipCount;
+  }
+
+  _depthPyramid.width = renderTarget.extent.width;
+  _depthPyramid.height = renderTarget.extent.height;
+  _depthPyramid.mipCount = mipCount;
+  _vkContext.createImage(_depthPyramid.width, _depthPyramid.height,
+                         _depthPyramid.mipCount, VK_FORMAT_R32_SFLOAT,
+                         VK_IMAGE_USAGE_SAMPLED_BIT |
+                             VK_IMAGE_USAGE_STORAGE_BIT,
+                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                         _depthPyramid.image, _depthPyramid.allocation);
+
+  _depthPyramid.view =
+      _vkContext.createImageView(_depthPyramid.image, VK_FORMAT_R32_SFLOAT,
+                                 VK_IMAGE_ASPECT_COLOR_BIT, 0, mipCount);
+  _depthPyramid.mipViews.resize(mipCount);
+  for (uint32_t mip = 0; mip < mipCount; ++mip) {
+    _depthPyramid.mipViews[mip] =
+        _vkContext.createImageView(_depthPyramid.image, VK_FORMAT_R32_SFLOAT,
+                                   VK_IMAGE_ASPECT_COLOR_BIT, mip, 1);
+  }
+
+  VkSamplerCreateInfo samplerInfo{
+      .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+      .magFilter = VK_FILTER_NEAREST,
+      .minFilter = VK_FILTER_NEAREST,
+      .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+      .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      .maxLod = static_cast<float>(mipCount - 1),
+  };
+
+  const VkResult createSamplerResult = vkCreateSampler(
+      _vkContext.device(), &samplerInfo, nullptr, &_depthPyramid.sampler);
+  assert(createSamplerResult == VK_SUCCESS && "failed to create sampler");
+}
+
 void Renderer::cleanupImgui() {
   if (_imguiDescriptorPool == VK_NULL_HANDLE) {
     return;
@@ -818,9 +995,14 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
       .view = cullData.view,
       .frustum = cullData.frustum,
       .zNearFar = cullData.zNearFar,
+      .projectionScale = cullData.projectionScale,
+      .hzbSize = {static_cast<float>(_depthPyramid.width),
+                  static_cast<float>(_depthPyramid.height)},
       .candidateCount = static_cast<uint32_t>(_candidateMeshlets.size()),
       .mode = _indirectMode == IndirectMode::MultiDraw ? 1u : 0u,
       .meshletDrawCount = static_cast<uint32_t>(_meshletDrawMetas.size()),
+      .hzbMipCount = _depthPyramid.mipCount,
+      .hzbEnabled = _hzbEnabled && _depthPyramidReady ? 1u : 0u,
   };
   vkCmdPushConstants(commandBuffer, _pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
@@ -927,10 +1109,118 @@ void Renderer::renderImgui(VkCommandBuffer commandBuffer, float dt) {
   if (ImGui::Button(buttonLabel)) {
     _switchIndirectModeRequested = true;
   }
+  ImGui::Text("HZB occlusion: %s", _hzbEnabled ? "Enabled" : "Disabled");
+  const char *hzbButtonLabel = _hzbEnabled ? "Disable HZB" : "Enable HZB";
+  if (ImGui::Button(hzbButtonLabel)) {
+    _hzbEnabled = !_hzbEnabled;
+  }
   ImGui::End();
 
   ImGui::Render();
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+}
+
+void Renderer::recordDepthPyramid(VkCommandBuffer commandBuffer,
+                                  const FrameContext &frame,
+                                  const CameraCullData &cullData) {
+  VkImageMemoryBarrier depthReadBarrier{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+      .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = frame.depthImage,
+      .subresourceRange =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+              .levelCount = 1,
+              .layerCount = 1,
+          },
+  };
+
+  vkCmdPipelineBarrier(commandBuffer,
+                       VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                           VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &depthReadBarrier);
+
+  VkImageMemoryBarrier hzbWriteBarrier{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .srcAccessMask = _depthPyramidReady ? VK_ACCESS_SHADER_READ_BIT : 0u,
+      .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+      .oldLayout = _depthPyramidReady ? VK_IMAGE_LAYOUT_GENERAL
+                                      : VK_IMAGE_LAYOUT_UNDEFINED,
+      .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = _depthPyramid.image,
+      .subresourceRange =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .levelCount = _depthPyramid.mipCount,
+              .layerCount = 1,
+          },
+  };
+
+  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &hzbWriteBarrier);
+
+  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    _depthPyramidPipeline);
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
+
+  uint32_t srcWidth = _depthPyramid.width;
+  uint32_t srcHeight = _depthPyramid.height;
+  for (uint32_t mip = 0; mip < _depthPyramid.mipCount; ++mip) {
+    const uint32_t dstWidth = mip == 0 ? srcWidth : maxValue(srcWidth / 2u, 1u);
+    const uint32_t dstHeight =
+        mip == 0 ? srcHeight : maxValue(srcHeight / 2u, 1u);
+    DepthPyramidPushConstants pushConstants{
+        .zNearFar = cullData.zNearFar,
+        .srcSize = {srcWidth, srcHeight},
+        .dstSize = {dstWidth, dstHeight},
+        .srcMip = mip == 0 ? 0u : mip - 1u,
+        .dstMip = mip,
+        .inputIsDepth = mip == 0 ? 1u : 0u,
+    };
+    vkCmdPushConstants(commandBuffer, _pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+                       0, sizeof(DepthPyramidPushConstants), &pushConstants);
+
+    vkCmdDispatch(commandBuffer, (dstWidth + 7u) / 8u, (dstHeight + 7u) / 8u,
+                  1);
+
+    VkImageMemoryBarrier mipBarrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = _depthPyramid.image,
+        .subresourceRange =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = mip,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
+    };
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &mipBarrier);
+
+    srcWidth = dstWidth;
+    srcHeight = dstHeight;
+  }
+
+  _depthPyramidReady = true;
 }
 
 void Renderer::recordRenderingCommands(VkCommandBuffer commandBuffer,
@@ -991,7 +1281,7 @@ void Renderer::recordRenderingCommands(VkCommandBuffer commandBuffer,
       .imageView = frame.depthImageView,
       .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-      .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
       .clearValue = {.depthStencil = {.depth = 1.0f, .stencil = 0}},
   };
 
@@ -1064,6 +1354,7 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
       commandBuffer,
       _renderBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
   recordRenderingCommands(commandBuffer, frame, viewProjection, dt);
+  recordDepthPyramid(commandBuffer, frame, cullData);
 
   const VkResult endCommandBufferResult = vkEndCommandBuffer(commandBuffer);
   assert(endCommandBufferResult == VK_SUCCESS &&

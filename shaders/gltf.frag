@@ -7,7 +7,7 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
   vec3 lightDir = normalize(vec3(0.4, 0.8, 0.6));
-  float lighting = max(dot(normalize(inNormal), lightDir), 0.0) * 0.3 + 0.01;
+  float lighting = max(dot(normalize(inNormal), lightDir), 0.0) * 0.5 + 0.01;
   vec3 base = inColor.rgb;
   outColor = vec4(base * lighting, 1.0);
 }

@@ -53,9 +53,7 @@ vec3 toCullView(vec3 viewVector) { return vec3(viewVector.xy, -viewVector.z); }
 bool sphereVisible(vec3 cullCenter, float radius) {
   const float z = cullCenter.z;
 
-  bool visible = true;
-  visible =
-      visible && z * pc.frustum.y - abs(cullCenter.x) * pc.frustum.x > -radius;
+  bool visible = z * pc.frustum.y - abs(cullCenter.x) * pc.frustum.x > -radius;
   visible =
       visible && z * pc.frustum.w - abs(cullCenter.y) * pc.frustum.z > -radius;
   visible = visible && z + radius > pc.zNearFar.x && z - radius < pc.zNearFar.y;

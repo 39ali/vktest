@@ -68,14 +68,14 @@ void App::initScene() {
     Object3D object(duckMesh);
     object.position = position;
     const float scale = 0.08f + randomFloat(generator) * 0.16f;
-    object.scale = glm::vec3{scale, scale, scale};
+    object.scale = glm::vec3{scale};
     const float yaw = randomFloat(generator) * glm::two_pi<float>();
     const float pitch = (randomFloat(generator) - 0.5f) * glm::radians(25.0f);
     const float roll = (randomFloat(generator) - 0.5f) * glm::radians(25.0f);
-    object.rotation =
-        glm::angleAxis(yaw + glm::radians(90.0f), glm::vec3{0.0f, 1.0f, 0.0f}) *
-        glm::angleAxis(pitch, glm::vec3{1.0f, 0.0f, 0.0f}) *
-        glm::angleAxis(roll, glm::vec3{0.0f, 0.0f, 1.0f});
+    object.rotation = glm::angleAxis(yaw, glm::vec3{0.0f, 1.0f, 0.0f}) *
+                      glm::angleAxis(pitch + glm::radians(180.0f),
+                                     glm::vec3{1.0f, 0.0f, 0.0f}) *
+                      glm::angleAxis(roll, glm::vec3{0.0f, 0.0f, 1.0f});
     object.color = {randomFloat(generator), randomFloat(generator),
                     randomFloat(generator), 1.0f};
     _objects.push_back(object);

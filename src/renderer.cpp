@@ -502,9 +502,7 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
   std::vector<uint32_t> meshletCandidateCounts(_meshlets.size(), 0);
 
   for (const Object3D &object : objects) {
-    if (object.meshId >= _meshes.size()) {
-      continue;
-    }
+    assert(object.meshId < _meshes.size() && "invalid object mesh id");
 
     const uint32_t instanceId = static_cast<uint32_t>(_frameInstances.size());
     _frameInstances.push_back(makeInstanceData(object));
@@ -514,9 +512,6 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
          ++meshletOffset) {
       const uint32_t meshletId = mesh.firstMeshlet + meshletOffset;
       const uint32_t triangleCount = meshletTriangleCount(_meshlets[meshletId]);
-      if (triangleCount == 0) {
-        continue;
-      }
 
       _candidateMeshlets.push_back({instanceId, meshletId});
       ++meshletCandidateCounts[meshletId];

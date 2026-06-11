@@ -84,14 +84,14 @@ void Renderer::cleanup() {
   if (_vkContext.device() != VK_NULL_HANDLE) {
     cleanupImgui();
     for (Buffer<RenderCounters> &buffer :
-         _opaqueBucket.counterReadbackBuffers) {
+         _renderBucket.counterReadbackBuffers) {
       destroyBuffer(buffer);
     }
-    destroyBuffer(_opaqueBucket.meshletDrawMetaBuffer);
-    destroyBuffer(_opaqueBucket.drawArgumentBuffer);
-    destroyBuffer(_opaqueBucket.counterBuffer);
-    destroyBuffer(_opaqueBucket.visibleMeshletBuffer);
-    destroyBuffer(_opaqueBucket.candidateMeshletBuffer);
+    destroyBuffer(_renderBucket.meshletDrawMetaBuffer);
+    destroyBuffer(_renderBucket.drawArgumentBuffer);
+    destroyBuffer(_renderBucket.counterBuffer);
+    destroyBuffer(_renderBucket.visibleMeshletBuffer);
+    destroyBuffer(_renderBucket.candidateMeshletBuffer);
     destroyBuffer(_instanceBuffer);
     destroyBuffer(_clusterTriangleBuffer);
     destroyBuffer(_meshletVertexRefBuffer);
@@ -370,10 +370,10 @@ void Renderer::updateInstanceDescriptorSet() {
 }
 
 void Renderer::updateMeshDescriptorSet() {
-  if (_meshlets.empty() || _clusterVertices.empty() ||
-      _meshletVertexRefs.empty() || _packedClusterTriangles.empty()) {
-    return;
-  }
+  assert(!_meshlets.empty());
+  assert(!_clusterVertices.empty());
+  assert(!_meshletVertexRefs.empty());
+  assert(!_packedClusterTriangles.empty());
 
   std::array<VkDescriptorBufferInfo, 4> bufferInfos{};
   bufferInfos[0].buffer = _meshletBuffer.buffer;
@@ -404,22 +404,22 @@ void Renderer::updateMeshDescriptorSet() {
 }
 
 void Renderer::updateRenderBucketDescriptorSet() {
-  if (_candidateMeshletCapacity == 0 || _visibleMeshletCapacity == 0 ||
-      _drawArgumentCapacity == 0 || _meshletDrawMetaCapacity == 0 ||
-      _opaqueBucket.counterBuffer.buffer == VK_NULL_HANDLE) {
-    return;
-  }
+  assert(_candidateMeshletCapacity > 0);
+  assert(_visibleMeshletCapacity > 0);
+  assert(_drawArgumentCapacity > 0);
+  assert(_meshletDrawMetaCapacity > 0);
+  assert(_renderBucket.counterBuffer.buffer != VK_NULL_HANDLE);
 
   std::array<VkDescriptorBufferInfo, 5> bufferInfos{};
-  bufferInfos[0].buffer = _opaqueBucket.candidateMeshletBuffer.buffer;
+  bufferInfos[0].buffer = _renderBucket.candidateMeshletBuffer.buffer;
   bufferInfos[0].range = sizeof(MeshletInstance) * _candidateMeshletCapacity;
-  bufferInfos[1].buffer = _opaqueBucket.visibleMeshletBuffer.buffer;
+  bufferInfos[1].buffer = _renderBucket.visibleMeshletBuffer.buffer;
   bufferInfos[1].range = sizeof(MeshletInstance) * _visibleMeshletCapacity;
-  bufferInfos[2].buffer = _opaqueBucket.drawArgumentBuffer.buffer;
+  bufferInfos[2].buffer = _renderBucket.drawArgumentBuffer.buffer;
   bufferInfos[2].range = sizeof(DrawIndirectCommand) * _drawArgumentCapacity;
-  bufferInfos[3].buffer = _opaqueBucket.counterBuffer.buffer;
+  bufferInfos[3].buffer = _renderBucket.counterBuffer.buffer;
   bufferInfos[3].range = sizeof(RenderCounters);
-  bufferInfos[4].buffer = _opaqueBucket.meshletDrawMetaBuffer.buffer;
+  bufferInfos[4].buffer = _renderBucket.meshletDrawMetaBuffer.buffer;
   bufferInfos[4].range = sizeof(MeshletDrawMeta) * _meshletDrawMetaCapacity;
 
   std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
@@ -593,20 +593,20 @@ bool Renderer::uploadHostBuffer(const std::vector<T> &source,
 void Renderer::uploadRenderBucket() {
   bool recreated = uploadHostBuffer(
       _candidateMeshlets, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-      _opaqueBucket.candidateMeshletBuffer, _candidateMeshletCapacity);
+      _renderBucket.candidateMeshletBuffer, _candidateMeshletCapacity);
 
   recreated |= uploadHostBuffer(
       _meshletDrawMetas, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-      _opaqueBucket.meshletDrawMetaBuffer, _meshletDrawMetaCapacity);
+      _renderBucket.meshletDrawMetaBuffer, _meshletDrawMetaCapacity);
 
   if (_candidateMeshlets.size() > _visibleMeshletCapacity) {
     vkDeviceWaitIdle(_vkContext.device());
-    destroyBuffer(_opaqueBucket.visibleMeshletBuffer);
+    destroyBuffer(_renderBucket.visibleMeshletBuffer);
     _visibleMeshletCapacity = _candidateMeshlets.size();
     createBuffer(sizeof(MeshletInstance) * _visibleMeshletCapacity,
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 _opaqueBucket.visibleMeshletBuffer);
+                 _renderBucket.visibleMeshletBuffer);
     recreated = true;
   }
 
@@ -616,23 +616,23 @@ void Renderer::uploadRenderBucket() {
           : 1;
   if (requiredDrawArgumentCount > _drawArgumentCapacity) {
     vkDeviceWaitIdle(_vkContext.device());
-    destroyBuffer(_opaqueBucket.drawArgumentBuffer);
+    destroyBuffer(_renderBucket.drawArgumentBuffer);
     _drawArgumentCapacity = requiredDrawArgumentCount;
     createBuffer(sizeof(DrawIndirectCommand) * _drawArgumentCapacity,
                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                      VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
                      VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 _opaqueBucket.drawArgumentBuffer);
+                 _renderBucket.drawArgumentBuffer);
     recreated = true;
   }
 
-  if (_opaqueBucket.counterBuffer.buffer == VK_NULL_HANDLE) {
+  if (_renderBucket.counterBuffer.buffer == VK_NULL_HANDLE) {
     createBuffer(
         sizeof(RenderCounters),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _opaqueBucket.counterBuffer);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _renderBucket.counterBuffer);
     recreated = true;
   }
 
@@ -642,13 +642,8 @@ void Renderer::uploadRenderBucket() {
 }
 
 void Renderer::ensureCounterReadbackBuffer(size_t frameIndex) {
-  if (frameIndex >= _opaqueBucket.counterReadbackBuffers.size()) {
-    _opaqueBucket.counterReadbackBuffers.resize(frameIndex + 1);
-    _opaqueBucket.counterReadbackReady.resize(frameIndex + 1, false);
-  }
-
   Buffer<RenderCounters> &buffer =
-      _opaqueBucket.counterReadbackBuffers[frameIndex];
+      _renderBucket.counterReadbackBuffers[frameIndex];
   if (buffer.buffer != VK_NULL_HANDLE) {
     return;
   }
@@ -660,17 +655,8 @@ void Renderer::ensureCounterReadbackBuffer(size_t frameIndex) {
 }
 
 void Renderer::readCompletedCounters(size_t frameIndex) {
-  if (frameIndex >= _opaqueBucket.counterReadbackBuffers.size() ||
-      frameIndex >= _opaqueBucket.counterReadbackReady.size() ||
-      !_opaqueBucket.counterReadbackReady[frameIndex]) {
-    return;
-  }
-
   const Buffer<RenderCounters> &buffer =
-      _opaqueBucket.counterReadbackBuffers[frameIndex];
-  if (buffer.memory == VK_NULL_HANDLE) {
-    return;
-  }
+      _renderBucket.counterReadbackBuffers[frameIndex];
 
   RenderCounters counters{};
   void *data = nullptr;
@@ -766,9 +752,9 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
     return;
   }
 
-  vkCmdFillBuffer(commandBuffer, _opaqueBucket.counterBuffer.buffer, 0,
+  vkCmdFillBuffer(commandBuffer, _renderBucket.counterBuffer.buffer, 0,
                   sizeof(RenderCounters), 0);
-  vkCmdFillBuffer(commandBuffer, _opaqueBucket.drawArgumentBuffer.buffer, 0,
+  vkCmdFillBuffer(commandBuffer, _renderBucket.drawArgumentBuffer.buffer, 0,
                   sizeof(DrawIndirectCommand) * _drawArgumentCapacity, 0);
 
   std::array<VkBufferMemoryBarrier, 2> transferBarriers{};
@@ -778,10 +764,10 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
   transferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   transferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  transferBarriers[0].buffer = _opaqueBucket.counterBuffer.buffer;
+  transferBarriers[0].buffer = _renderBucket.counterBuffer.buffer;
   transferBarriers[0].size = VK_WHOLE_SIZE;
   transferBarriers[1] = transferBarriers[0];
-  transferBarriers[1].buffer = _opaqueBucket.drawArgumentBuffer.buffer;
+  transferBarriers[1].buffer = _renderBucket.drawArgumentBuffer.buffer;
 
   vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
@@ -820,11 +806,11 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
     barrier.size = VK_WHOLE_SIZE;
   }
   computeBarriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-  computeBarriers[0].buffer = _opaqueBucket.visibleMeshletBuffer.buffer;
+  computeBarriers[0].buffer = _renderBucket.visibleMeshletBuffer.buffer;
   computeBarriers[1].dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-  computeBarriers[1].buffer = _opaqueBucket.drawArgumentBuffer.buffer;
+  computeBarriers[1].buffer = _renderBucket.drawArgumentBuffer.buffer;
   computeBarriers[2].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-  computeBarriers[2].buffer = _opaqueBucket.counterBuffer.buffer;
+  computeBarriers[2].buffer = _renderBucket.counterBuffer.buffer;
 
   vkCmdPipelineBarrier(
       commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -835,7 +821,7 @@ void Renderer::recordComputeCull(VkCommandBuffer commandBuffer,
 
   VkBufferCopy counterCopy{};
   counterCopy.size = sizeof(RenderCounters);
-  vkCmdCopyBuffer(commandBuffer, _opaqueBucket.counterBuffer.buffer,
+  vkCmdCopyBuffer(commandBuffer, _renderBucket.counterBuffer.buffer,
                   counterReadbackBuffer, 1, &counterCopy);
 
   VkBufferMemoryBarrier hostReadBarrier{
@@ -913,7 +899,7 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
 
   recordComputeCull(
       commandBuffer,
-      _opaqueBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
+      _renderBucket.counterReadbackBuffers[frame.frameIndex].buffer, cullData);
 
   std::array<VkImageMemoryBarrier, 2> beginRenderingBarriers{};
   beginRenderingBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -988,7 +974,7 @@ void Renderer::recordCommandBuffer(const FrameContext &frame,
     vkCmdPushConstants(commandBuffer, _pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
                        0, sizeof(PushConstants), &pushConstants);
-    vkCmdDrawIndirect(commandBuffer, _opaqueBucket.drawArgumentBuffer.buffer, 0,
+    vkCmdDrawIndirect(commandBuffer, _renderBucket.drawArgumentBuffer.buffer, 0,
                       _indirectDrawCount, sizeof(DrawIndirectCommand));
   }
 
@@ -1030,6 +1016,5 @@ void Renderer::render(const glm::mat4 &viewProjection,
   ensureCounterReadbackBuffer(frame.frameIndex);
   readCompletedCounters(frame.frameIndex);
   recordCommandBuffer(frame, viewProjection, cullData, dt);
-  _opaqueBucket.counterReadbackReady[frame.frameIndex] = true;
   _vkContext.endFrame(frame);
 }

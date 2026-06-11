@@ -32,8 +32,7 @@ struct RenderBucket {
   Buffer<DrawIndirectCommand> drawArgumentBuffer;
   Buffer<RenderCounters> counterBuffer;
   Buffer<MeshletDrawMeta> meshletDrawMetaBuffer;
-  std::vector<Buffer<RenderCounters>> counterReadbackBuffers;
-  std::vector<bool> counterReadbackReady;
+  Buffer<RenderCounters> counterReadbackBuffers[VkContext::kMaxFramesInFlight];
 };
 
 enum class IndirectMode { SingleDraw, MultiDraw };
@@ -120,7 +119,7 @@ private:
   Buffer<uint32_t> _meshletVertexRefBuffer;
   Buffer<uint32_t> _clusterTriangleBuffer;
   Buffer<InstanceData> _instanceBuffer;
-  RenderBucket _opaqueBucket;
+  RenderBucket _renderBucket;
   size_t _instanceBufferCapacity = 0;
   size_t _candidateMeshletCapacity = 0;
   size_t _visibleMeshletCapacity = 0;

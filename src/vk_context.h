@@ -36,6 +36,8 @@ public:
   VkContext(const VkContext &) = delete;
   VkContext &operator=(const VkContext &) = delete;
 
+  static constexpr size_t kMaxFramesInFlight = 2;
+
   void init();
   void cleanup();
   FrameContext beginFrame();
@@ -117,7 +119,6 @@ private:
                    Image &image) const;
   void cleanupSyncObjects();
 
-  static constexpr size_t kMaxFramesInFlight = 2;
   VkInstance _instance = VK_NULL_HANDLE;
   VkDebugUtilsMessengerEXT _debugMessenger = VK_NULL_HANDLE;
   VkSurfaceKHR _surface = VK_NULL_HANDLE;

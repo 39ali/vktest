@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
+#include <string>
 
 namespace {
 struct PushConstants {
@@ -31,6 +32,15 @@ uint32_t packColor(const glm::vec4 &color) {
   };
   return packChannel(color.r) | (packChannel(color.g) << 8) |
          (packChannel(color.b) << 16) | (packChannel(color.a) << 24);
+}
+
+std::string formatNumber(uint64_t value) {
+  std::string text = std::to_string(value);
+  for (int insertPosition = static_cast<int>(text.size()) - 3;
+       insertPosition > 0; insertPosition -= 3) {
+    text.insert(static_cast<size_t>(insertPosition), ",");
+  }
+  return text;
 }
 
 InstanceData makeInstanceData(const Object3D &object) {
@@ -700,12 +710,11 @@ void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
   allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
   allocationInfo.requiredFlags = properties;
   if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-    const bool readbackBuffer =
-        (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
-        !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    allocationInfo.flags = readbackBuffer
-                               ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
-                               : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    const bool readbackBuffer = (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
+                                !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    allocationInfo.flags =
+        readbackBuffer ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                       : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
   }
 
   const VkResult createBufferResult =
@@ -841,10 +850,14 @@ void Renderer::renderImgui(VkCommandBuffer commandBuffer, float dt) {
   const float fps = dt > 0.0f ? 1000.0f / dt : 0.0f;
   ImGui::Text("FPS: %.2f", fps);
   ImGui::Text("frame time: %.3f ms", dt);
-  ImGui::Text("rendered meshlets: %u / %u", _stats.visibleMeshlets,
-              _stats.totalMeshlets);
-  ImGui::Text("rendered triangles: %u / %llu", _stats.visibleTriangles,
-              static_cast<unsigned long long>(_stats.totalTriangles));
+  const std::string visibleMeshlets = formatNumber(_stats.visibleMeshlets);
+  const std::string totalMeshlets = formatNumber(_stats.totalMeshlets);
+  const std::string visibleTriangles = formatNumber(_stats.visibleTriangles);
+  const std::string totalTriangles = formatNumber(_stats.totalTriangles);
+  ImGui::Text("rendered meshlets: %s / %s", visibleMeshlets.c_str(),
+              totalMeshlets.c_str());
+  ImGui::Text("rendered triangles: %s / %s", visibleTriangles.c_str(),
+              totalTriangles.c_str());
 
   const bool multiDrawSupported = _vkContext.supportsMultiDrawIndirect();
   const char *modeName =

@@ -3,6 +3,7 @@
 #include <optional>
 #include <vector>
 #include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 
 struct GLFWwindow;
 
@@ -48,6 +49,7 @@ public:
   void waitIdle() const;
 
   VkDevice device() const { return _device; }
+  VmaAllocator allocator() const { return _allocator; }
   VkInstance instance() const { return _instance; }
   VkPhysicalDevice physicalDevice() const { return _physicalDevice; }
   VkQueue graphicsQueue() const { return _graphicsQueue; }
@@ -58,10 +60,6 @@ public:
     return static_cast<uint32_t>(_swapChainImages.size());
   }
   bool supportsMultiDrawIndirect() const { return _supportsMultiDrawIndirect; }
-
-  uint32_t findMemoryType(uint32_t typeFilter,
-                          VkMemoryPropertyFlags properties) const;
-
 private:
   struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -80,7 +78,7 @@ private:
 
   struct Image {
     VkImage image = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
   };
 
@@ -96,6 +94,7 @@ private:
                         const QueueFamilyIndices &indices) const;
   bool checkDeviceExtensionSupport(VkPhysicalDevice device) const;
   void createLogicalDevice();
+  void createAllocator();
   void createCommandPool();
   void createSwapChain();
   void cleanupSwapChain();
@@ -126,6 +125,7 @@ private:
   VkDevice _device = VK_NULL_HANDLE;
   VkQueue _graphicsQueue = VK_NULL_HANDLE;
   VkQueue _presentQueue = VK_NULL_HANDLE;
+  VmaAllocator _allocator = VK_NULL_HANDLE;
   QueueFamilyIndices _queueFamilies;
   VkCommandPool _commandPool = VK_NULL_HANDLE;
   VkSwapchainKHR _swapChain = VK_NULL_HANDLE;

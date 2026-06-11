@@ -13,7 +13,7 @@ struct GLFWwindow;
 
 template <typename T> struct Buffer {
   VkBuffer buffer = VK_NULL_HANDLE;
-  VkDeviceMemory memory = VK_NULL_HANDLE;
+  VmaAllocation allocation = VK_NULL_HANDLE;
 };
 
 struct MeshUploadInfo {
@@ -73,7 +73,6 @@ private:
   void updateRenderBucketDescriptorSet();
   void rebuildMeshBuffers();
   void uploadRenderBucket();
-  void ensureCounterReadbackBuffer(size_t frameIndex);
   void readCompletedCounters(size_t frameIndex);
   template <typename T>
   bool uploadHostBuffer(const std::vector<T> &source, VkBufferUsageFlags usage,

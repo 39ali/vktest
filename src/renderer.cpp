@@ -75,6 +75,12 @@ void Renderer::init() {
   createCullingPipeline();
   createDescriptorPool();
   createDescriptorSet();
+  for (Buffer<RenderCounters> &buffer : _renderBucket.counterReadbackBuffers) {
+    createBuffer(sizeof(RenderCounters), VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 buffer);
+  }
   createImgui();
 }
 
@@ -554,10 +560,9 @@ void Renderer::setObjects(const std::vector<Object3D> &objects) {
       sizeof(_frameInstances[0]) * _frameInstances.size();
 
   void *data = nullptr;
-  vkMapMemory(_vkContext.device(), _instanceBuffer.memory, 0, uploadSize, 0,
-              &data);
+  vmaMapMemory(_vkContext.allocator(), _instanceBuffer.allocation, &data);
   std::memcpy(data, _frameInstances.data(), static_cast<size_t>(uploadSize));
-  vkUnmapMemory(_vkContext.device(), _instanceBuffer.memory);
+  vmaUnmapMemory(_vkContext.allocator(), _instanceBuffer.allocation);
 
   uploadRenderBucket();
 }
@@ -584,9 +589,9 @@ bool Renderer::uploadHostBuffer(const std::vector<T> &source,
   }
 
   void *data = nullptr;
-  vkMapMemory(_vkContext.device(), target.memory, 0, bufferSize, 0, &data);
+  vmaMapMemory(_vkContext.allocator(), target.allocation, &data);
   std::memcpy(data, source.data(), static_cast<size_t>(bufferSize));
-  vkUnmapMemory(_vkContext.device(), target.memory);
+  vmaUnmapMemory(_vkContext.allocator(), target.allocation);
   return recreated;
 }
 
@@ -641,29 +646,15 @@ void Renderer::uploadRenderBucket() {
   }
 }
 
-void Renderer::ensureCounterReadbackBuffer(size_t frameIndex) {
-  Buffer<RenderCounters> &buffer =
-      _renderBucket.counterReadbackBuffers[frameIndex];
-  if (buffer.buffer != VK_NULL_HANDLE) {
-    return;
-  }
-
-  createBuffer(sizeof(RenderCounters), VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-               buffer);
-}
-
 void Renderer::readCompletedCounters(size_t frameIndex) {
   const Buffer<RenderCounters> &buffer =
       _renderBucket.counterReadbackBuffers[frameIndex];
 
   RenderCounters counters{};
   void *data = nullptr;
-  vkMapMemory(_vkContext.device(), buffer.memory, 0, sizeof(counters), 0,
-              &data);
+  vmaMapMemory(_vkContext.allocator(), buffer.allocation, &data);
   std::memcpy(&counters, data, sizeof(counters));
-  vkUnmapMemory(_vkContext.device(), buffer.memory);
+  vmaUnmapMemory(_vkContext.allocator(), buffer.allocation);
 
   _stats.visibleMeshlets = counters.visibleMeshletCount;
   _stats.visibleTriangles = counters.visibleTriangleCount;
@@ -686,9 +677,9 @@ void Renderer::uploadDeviceLocalBuffer(const std::vector<T> &source,
                staging);
 
   void *data = nullptr;
-  vkMapMemory(_vkContext.device(), staging.memory, 0, bufferSize, 0, &data);
+  vmaMapMemory(_vkContext.allocator(), staging.allocation, &data);
   std::memcpy(data, source.data(), static_cast<size_t>(bufferSize));
-  vkUnmapMemory(_vkContext.device(), staging.memory);
+  vmaUnmapMemory(_vkContext.allocator(), staging.allocation);
 
   createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage,
                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, target);
@@ -704,31 +695,28 @@ void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
   bufferInfo.size = size;
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  VmaAllocationCreateInfo allocationInfo{};
+  allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+  allocationInfo.requiredFlags = properties;
+  if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+    const bool readbackBuffer =
+        (usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) &&
+        !(usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    allocationInfo.flags = readbackBuffer
+                               ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT
+                               : VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+  }
+
   const VkResult createBufferResult =
-      vkCreateBuffer(_vkContext.device(), &bufferInfo, nullptr, &buffer.buffer);
+      vmaCreateBuffer(_vkContext.allocator(), &bufferInfo, &allocationInfo,
+                      &buffer.buffer, &buffer.allocation, nullptr);
   assert(createBufferResult == VK_SUCCESS && "failed to create buffer");
-
-  VkMemoryRequirements memRequirements;
-  vkGetBufferMemoryRequirements(_vkContext.device(), buffer.buffer,
-                                &memRequirements);
-  VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex =
-      _vkContext.findMemoryType(memRequirements.memoryTypeBits, properties);
-
-  const VkResult allocateBufferMemoryResult = vkAllocateMemory(
-      _vkContext.device(), &allocInfo, nullptr, &buffer.memory);
-  assert(allocateBufferMemoryResult == VK_SUCCESS &&
-         "failed to allocate buffer memory");
-  vkBindBufferMemory(_vkContext.device(), buffer.buffer, buffer.memory, 0);
 }
 
 template <typename T> void Renderer::destroyBuffer(Buffer<T> &buffer) {
   if (buffer.buffer != VK_NULL_HANDLE) {
-    vkDestroyBuffer(_vkContext.device(), buffer.buffer, nullptr);
-  }
-  if (buffer.memory != VK_NULL_HANDLE) {
-    vkFreeMemory(_vkContext.device(), buffer.memory, nullptr);
+    vmaDestroyBuffer(_vkContext.allocator(), buffer.buffer, buffer.allocation);
   }
   buffer = {};
 }
@@ -1013,7 +1001,6 @@ void Renderer::render(const glm::mat4 &viewProjection,
   }
 
   const FrameContext frame = _vkContext.beginFrame();
-  ensureCounterReadbackBuffer(frame.frameIndex);
   readCompletedCounters(frame.frameIndex);
   recordCommandBuffer(frame, viewProjection, cullData, dt);
   _vkContext.endFrame(frame);

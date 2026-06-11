@@ -63,6 +63,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+  vma
+  GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG v3.3.0
+)
+FetchContent_MakeAvailable(vma)
+
 find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/Bin")
 if (NOT GLSLC_EXECUTABLE)
   message(FATAL_ERROR "Could not find glslc. Install the Vulkan SDK or add glslc to PATH.")
@@ -116,6 +123,7 @@ target_include_directories(vktest PRIVATE
   ${tinygltf_SOURCE_DIR}
   ${imgui_SOURCE_DIR}
   ${imgui_SOURCE_DIR}/backends
+  ${vma_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/shaders
 )
 target_link_libraries(vktest PRIVATE Vulkan::Vulkan meshoptimizer)

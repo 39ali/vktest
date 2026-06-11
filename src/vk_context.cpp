@@ -1,4 +1,5 @@
 #define NOMINMAX
+#define VMA_IMPLEMENTATION
 #include "vk_context.h"
 #include "math_helper.h"
 
@@ -61,6 +62,7 @@ void VkContext::init() {
   createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
+  createAllocator();
   createCommandPool();
   createCommandBuffers();
   createSwapChain();
@@ -75,6 +77,10 @@ void VkContext::cleanup() {
     if (_commandPool != VK_NULL_HANDLE) {
       vkDestroyCommandPool(_device, _commandPool, nullptr);
       _commandPool = VK_NULL_HANDLE;
+    }
+    if (_allocator != VK_NULL_HANDLE) {
+      vmaDestroyAllocator(_allocator);
+      _allocator = VK_NULL_HANDLE;
     }
     vkDestroyDevice(_device, nullptr);
     _device = VK_NULL_HANDLE;
@@ -114,10 +120,7 @@ void VkContext::cleanupRenderTargets() {
     vkDestroyImageView(_device, _depthImage.view, nullptr);
   }
   if (_depthImage.image != VK_NULL_HANDLE) {
-    vkDestroyImage(_device, _depthImage.image, nullptr);
-  }
-  if (_depthImage.memory != VK_NULL_HANDLE) {
-    vkFreeMemory(_device, _depthImage.memory, nullptr);
+    vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
   }
   _depthImage = {};
 }
@@ -402,6 +405,20 @@ void VkContext::createLogicalDevice() {
                    &_graphicsQueue);
   vkGetDeviceQueue(_device, _queueFamilies.presentFamily.value(), 0,
                    &_presentQueue);
+}
+
+void VkContext::createAllocator() {
+  VmaAllocatorCreateInfo allocatorInfo{};
+  allocatorInfo.flags = VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |
+                        VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+  allocatorInfo.physicalDevice = _physicalDevice;
+  allocatorInfo.device = _device;
+  allocatorInfo.instance = _instance;
+  allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+
+  const VkResult createAllocatorResult =
+      vmaCreateAllocator(&allocatorInfo, &_allocator);
+  assert(createAllocatorResult == VK_SUCCESS && "failed to create VMA allocator");
 }
 
 void VkContext::createCommandPool() {
@@ -710,36 +727,12 @@ void VkContext::createImage(uint32_t width, uint32_t height, VkFormat format,
   imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
   imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+  VmaAllocationCreateInfo allocationInfo{};
+  allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+  allocationInfo.requiredFlags = properties;
+
   const VkResult createImageResult =
-      vkCreateImage(_device, &imageInfo, nullptr, &image.image);
+      vmaCreateImage(_allocator, &imageInfo, &allocationInfo, &image.image,
+                     &image.allocation, nullptr);
   assert(createImageResult == VK_SUCCESS && "failed to create image");
-
-  VkMemoryRequirements memRequirements{};
-  vkGetImageMemoryRequirements(_device, image.image, &memRequirements);
-
-  VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex =
-      findMemoryType(memRequirements.memoryTypeBits, properties);
-
-  const VkResult allocateImageMemoryResult =
-      vkAllocateMemory(_device, &allocInfo, nullptr, &image.memory);
-  assert(allocateImageMemoryResult == VK_SUCCESS &&
-         "failed to allocate image memory");
-
-  vkBindImageMemory(_device, image.image, image.memory, 0);
-}
-
-uint32_t VkContext::findMemoryType(uint32_t typeFilter,
-                                   VkMemoryPropertyFlags properties) const {
-  VkPhysicalDeviceMemoryProperties memProperties;
-  vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
-  for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
-    if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags &
-                                    properties) == properties) {
-      return i;
-    }
-  }
-  assert(false && "failed to find suitable memory type");
-  return 0;
 }

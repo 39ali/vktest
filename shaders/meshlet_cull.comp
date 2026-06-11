@@ -24,11 +24,11 @@ layout(set = 0, binding = 1, std430) readonly buffer MeshletBuffer {
 };
 
 layout(set = 0, binding = 4, std430) readonly buffer CandidateMeshletBuffer {
-  CandidateMeshlet candidateMeshlets[];
+  MeshletInstance candidateMeshlets[];
 };
 
 layout(set = 0, binding = 5, std430) buffer VisibleMeshletBuffer {
-  VisibleMeshlet visibleMeshlets[];
+  MeshletInstance visibleMeshlets[];
 };
 
 layout(set = 0, binding = 6, std430) buffer DrawArgumentBuffer {
@@ -98,7 +98,7 @@ void main() {
     return;
   }
 
-  CandidateMeshlet candidate = candidateMeshlets[candidateId];
+  MeshletInstance candidate = candidateMeshlets[candidateId];
   InstanceData instance = instances[candidate.instanceId];
   Meshlet meshlet = meshlets[candidate.meshletId];
   vec4 boundingSphere = unpackMeshletSphere(meshlet);

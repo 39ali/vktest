@@ -28,7 +28,7 @@ layout(set = 0, binding = 3, std430) readonly buffer ClusterTriangleBuffer {
 };
 
 layout(set = 0, binding = 5, std430) readonly buffer VisibleMeshletBuffer {
-  VisibleMeshlet visibleMeshlets[];
+  MeshletInstance visibleMeshlets[];
 };
 
 layout(set = 0, binding = 9, std430) readonly buffer MeshletVertexRefBuffer {
@@ -43,7 +43,7 @@ vec4 unpackColor(uint color) {
 
 void main() {
   uint localVertexIndex = gl_VertexIndex;
-  VisibleMeshlet visibleMeshlet = visibleMeshlets[gl_InstanceIndex];
+  MeshletInstance visibleMeshlet = visibleMeshlets[gl_InstanceIndex];
   InstanceData instance = instances[visibleMeshlet.instanceId];
   Meshlet meshlet = meshlets[visibleMeshlet.meshletId];
 

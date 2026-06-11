@@ -42,12 +42,7 @@ struct MeshletVertex {
   uint normalYZ;
 };
 
-struct CandidateMeshlet {
-  uint instanceId;
-  uint meshletId;
-};
-
-struct VisibleMeshlet {
+struct MeshletInstance {
   uint instanceId;
   uint meshletId;
 };
@@ -119,8 +114,7 @@ static_assert(offsetof(Meshlet, packedCountsAndFlags) == 16);
 static_assert(offsetof(Meshlet, boundingCone) == 20);
 
 static_assert(sizeof(MeshletVertex) == 12);
-static_assert(sizeof(CandidateMeshlet) == 8);
-static_assert(sizeof(VisibleMeshlet) == 8);
+static_assert(sizeof(MeshletInstance) == 8);
 static_assert(sizeof(MeshletDrawMeta) == 8);
 static_assert(sizeof(DrawIndirectCommand) == 16);
 #endif

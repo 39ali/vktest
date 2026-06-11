@@ -83,7 +83,8 @@ void Renderer::waitIdle() { _vkContext.waitIdle(); }
 void Renderer::cleanup() {
   if (_vkContext.device() != VK_NULL_HANDLE) {
     cleanupImgui();
-    for (Buffer<RenderCounters> &buffer : _opaqueBucket.counterReadbackBuffers) {
+    for (Buffer<RenderCounters> &buffer :
+         _opaqueBucket.counterReadbackBuffers) {
       destroyBuffer(buffer);
     }
     destroyBuffer(_opaqueBucket.meshletDrawMetaBuffer);
@@ -492,7 +493,7 @@ void Renderer::rebuildMeshBuffers() {
   updateMeshDescriptorSet();
 }
 
-void Renderer::uploadObjects(const std::vector<Object3D> &objects) {
+void Renderer::setObjects(const std::vector<Object3D> &objects) {
   _frameInstances.clear();
   _candidateMeshlets.clear();
   _meshletDrawMetas.clear();
@@ -564,10 +565,6 @@ void Renderer::uploadObjects(const std::vector<Object3D> &objects) {
   vkUnmapMemory(_vkContext.device(), _instanceBuffer.memory);
 
   uploadRenderBucket();
-}
-
-void Renderer::setObjects(const std::vector<Object3D> &objects) {
-  uploadObjects(objects);
 }
 
 template <typename T>

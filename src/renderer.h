@@ -73,7 +73,6 @@ private:
   void updateMeshDescriptorSet();
   void updateRenderBucketDescriptorSet();
   void rebuildMeshBuffers();
-  void uploadObjects(const std::vector<Object3D> &objects);
   void uploadRenderBucket();
   void ensureCounterReadbackBuffer(size_t frameIndex);
   void readCompletedCounters(size_t frameIndex);
